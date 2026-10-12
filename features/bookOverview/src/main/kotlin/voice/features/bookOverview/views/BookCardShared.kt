@@ -84,7 +84,13 @@ private fun OnlineSourceBadge(
   source: String,
   modifier: Modifier = Modifier,
 ) {
-  val label = source
+  // 玉机子：source 是给程序寻址用的（扩展源形如 jdr:yujizi），徽标要显示给人看。
+  // 内置的玉机子源直接用中文名；其它扩展源退回去掉 jdr: 前缀的 id；
+  // 服务端书源（接口名 A/B/...）保持原样。
+  val label = when (val sourceId = source.removePrefix(JDR_SOURCE_PREFIX)) {
+    YUJIZI_SOURCE_ID -> YUJIZI_LABEL
+    else -> if (sourceId == source) source else sourceId
+  }
   val badgeDescription = stringResource(StringsR.string.library_online_source_badge, label)
   Surface(
     modifier = modifier
@@ -286,3 +292,12 @@ internal fun BookImportProgressText(
     modifier = modifier,
   )
 }
+
+/** 扩展源寻址前缀，与 ExtensionEngineProvider.SOURCE_PREFIX 保持一致。 */
+private const val JDR_SOURCE_PREFIX = "jdr:"
+
+/** 玉机子内置源的 id（见 app/src/main/assets/yujizi.jdr 里的 manifest）。 */
+private const val YUJIZI_SOURCE_ID = "yujizi"
+
+/** 徽标上显示的名字。 */
+private const val YUJIZI_LABEL = "玉机子"
