@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: '版本名 versionName，如 1.0.0'
+        required: true
+      versionCode:
+        description: '版本号 versionCode（整数，可留空：留空则自动取上次发布 +1）'
+        required: false
+        default: ''
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/build_setup
+
+      - name: 解析 versionCode（留空则自动取上次发布 +1）
+        id: ver
+        env:
+          INPUT_CODE: ${{ inputs.versionCode }}
+        run: |
+          LAST=$(sed -n 's/.*"versionCode": *\([0-9][0-9]*\).*/\1/p' update.json 2>/dev/null | tail -n 1)
+          LAST=${LAST:-0}
+          if [ -n "$INPUT_CODE" ]; then
+            CODE="$INPUT_CODE"
+          else
+            CODE=$((LAST + 1))
+            echo "未填 versionCode，依据 update.json（上次=$LAST）自动使用 $CODE"
+          fi
+          if [ "$CODE" -lt "$LAST" ]; then
+            echo "::error::versionCode=$CODE 低于已发布的 $LAST（见 update.json），会造成降级，请填写更大的值"
+            exit 1
+          fi
+          if [ "$CODE" -eq "$LAST" ]; then
+            echo "::warning::versionCode=$CODE 与上次发布相同，建议递增"
+          fi
+          echo "versionCode=$CODE" >> "$GITHUB_OUTPUT"
+
+      - name: 写入签名配置
+        env:
+          TIMBRE_KEYSTORE_BASE64: ${{ secrets.TIMBRE_KEYSTORE_BASE64 }}
+          TIMBRE_STORE_PASSWORD: ${{ secrets.TIMBRE_STORE_PASSWORD }}
+          TIMBRE_KEY_ALIAS: ${{ secrets.TIMBRE_KEY_ALIAS }}
+          TIMBRE_KEY_PASSWORD: ${{ secrets.TIMBRE_KEY_PASSWORD }}
+        run: |
+          mkdir -p signing
+          echo "$TIMBRE_KEYSTORE_BASE64" | base64 --decode > signing/signing.keystore
+          {
+            echo "STORE_PASSWORD=$TIMBRE_STORE_PASSWORD"
+            echo "KEY_ALIAS=$TIMBRE_KEY_ALIAS"
+            echo "KEY_PASSWORD=$TIMBRE_KEY_PASSWORD"
+          } > signing/signing.properties
+
+      - name: 构建 Release APK
+        run: |
+          ./gradlew assembleFreeRelease \
+            -Pvoice.versionName="${{ inputs.versionName }}" \
+            -Pvoice.versionCode="${{ steps.ver.outputs.versionCode }}"
+          test -f app/build/outputs/apk/free/release/app-free-release.apk
+
+      - name: 上传 APK 到构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: timbre-v${{ inputs.versionName }}
+          path: app/build/outputs/apk/free/release/app-free-release.apk
+
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp app/build/outputs/apk/free/release/app-free-release.apk \
+            "timbre-v${{ inputs.versionName }}.apk"
+          gh release create "v${{ inputs.versionName }}" \
+            "timbre-v${{ inputs.versionName }}.apk" \
+            --title "Timbre v${{ inputs.versionName }}" \
+            --generate-notes \
+            --target "$GITHUB_SHA"
+
+      - name: 更新 update.json 供应用内检查更新
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # the in-app update dialog renders the release notes: fetch the body
+          # the release was created with (--generate-notes) and embed it. jq
+          # escapes newlines and quotes so update.json stays valid JSON
+          NOTES=$(gh release view "v${{ inputs.versionName }}" --json body -q .body)
+          jq -n \
+            --arg versionName "${{ inputs.versionName }}" \
+            --argjson versionCode "${{ steps.ver.outputs.versionCode }}" \
+            --arg releaseUrl "https://github.com/cq10086123/Timbre/releases/latest" \
+            --arg releaseNotes "$NOTES" \
+            '{versionName: $versionName, versionCode: $versionCode, releaseUrl: $releaseUrl, releaseNotes: $releaseNotes}' > update.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          if git diff --cached --quiet; then
+            echo "update.json unchanged"
+          else
+            git commit -m "Publish update.json for v${{ inputs.versionName }}"
+            for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "push attempt $attempt failed, retrying"
+            sleep 5
+          done
+          echo "::error::Could not push update.json to main after 3 attempts"
+          exit 1
+          fi

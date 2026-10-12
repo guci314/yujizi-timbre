@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation" tools:locale="en">
+    <!-- Bottom-sheet action for moving a book to the completed category. -->
+    <string name="book.category.action.mark_completed">Mark as Completed</string>
+    <!-- Bottom-sheet action for moving a book to the current category. -->
+    <string name="book.category.action.mark_current">Mark as Current</string>
+    <!-- Bottom-sheet action for moving a book to the not-started category. -->
+    <string name="book.category.action.mark_not_started">Mark as Not Started Yet</string>
+    <!-- Bottom-sheet action title for deleting a book. -->
+    <string name="book.delete.bottom_sheet.title">Delete Book</string>
+    <!-- Checkbox label confirming that the audio files should be deleted as well. -->
+    <string name="book.delete.dialog.confirm_files">Also delete my files</string>
+    <!-- Message in the delete-book confirmation dialog. Removing a book from the shelf keeps its files. -->
+    <string name="book.delete.dialog.message">Removes the book from your shelf. The audio files stay on your device.</string>
+    <!-- Message in the delete-book confirmation dialog for an online book: its manually cached episodes are deleted too. -->
+    <string name="book.delete.dialog.message_online">Removes the book from your shelf. Its cached episodes are deleted as well.</string>
+    <!-- Shows how much of an online book is cached, so the delete dialog does not hide the files it removes. -->
+    <string name="book.delete.dialog.cached">Cached episodes: %1$d · %2$s</string>
+    <!-- Title for the delete-book confirmation dialog. -->
+    <string name="book.delete.dialog.title">Delete Book</string>
+    <!-- Bottom-sheet item for choosing a cover from local files. -->
+    <string name="book.edit.cover.file">Cover from the file system</string>
+    <!-- Label for the editable book-name field and bottom-sheet item. -->
+    <string name="book.edit.name.label">Name</string>
+    <!-- Title for the dialog that edits a book title. -->
+    <string name="book.edit.title">Edit book</string>
+    <!-- Snackbar message shown after creating a bookmark. -->
+    <string name="bookmark.added.snackbar">Bookmark added</string>
+    <!-- Relative timestamp for a bookmark created moments ago. -->
+    <string name="bookmark.created.just_now">Just now</string>
+    <!-- Label for a bookmark-name text field. -->
+    <string name="bookmark.edit.name.label">Bookmark name</string>
+    <!-- Title for the dialog that edits a bookmark. -->
+    <string name="bookmark.edit.title">Edit bookmark</string>
+    <!-- Title for bookmark screens and bookmark actions. -->
+    <string name="bookmark.title">Bookmark</string>
+    <!-- Generic add action and content description. -->
+    <string name="common.action.add">Add</string>
+    <!-- Generic content description for closing the current screen or dialog. -->
+    <string name="common.action.close">Close</string>
+    <!-- Generic delete action and content description. -->
+    <string name="common.action.delete">Delete</string>
+    <!-- Generic edit action in popup menus. -->
+    <string name="common.action.edit">Edit</string>
+    <!-- Content description for an overflow menu button. -->
+    <string name="common.action.more">More</string>
+    <!-- Generic remove action in menus. -->
+    <string name="common.action.remove">Remove</string>
+    <!-- Generic action for dismissing a dialog without applying changes. -->
+    <string name="common.dialog.cancel">Cancel</string>
+  <string name="online.shelf.add">Add to shelf</string>
+  <string name="online.shelf.remove">Remove from shelf</string>
+    <!-- Generic confirmation action in dialogs that apply a value. -->
+    <string name="common.dialog.confirm">Set</string>
+    <!-- Generic error message shown when cover search or loading fails. -->
+    <string name="common.error.generic.message">Something went wrong 😢</string>
+    <!-- Retry action shown after a generic error. -->
+    <string name="common.error.generic.retry">Retry</string>
+    <!-- Content description for a cover preview that can be selected. -->
+    <string name="cover.content_description.selectable">Shows cover to choose</string>
+    <!-- Shown when a cover search finished without a single result, e.g. because there is no usable connection. -->
+    <string name="cover.search.empty.message">No cover found. Try another search term, or check your connection.</string>
+    <!-- Search query template for cover lookup when title and author are known. -->
+    <string name="cover.search.query.with_author">%1$s by %2$s audiobook cover</string>
+    <!-- Search query template for cover lookup when only the book title is known. -->
+    <string name="cover.search.query.without_author">%s audiobook cover</string>
+    <!-- Content description for an icon indicating a recent cover-search query. -->
+    <string name="cover.search.recent.content_description">Recent query</string>
+    <!-- Generic title for artwork shown for a book or cover editor. -->
+    <string name="cover.title">Cover</string>
+    <!-- Pluralized duration text for sleep timer minutes. -->
+    <plurals name="duration.minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <!-- Pluralized duration text for settings that use seconds. -->
+    <plurals name="duration.seconds">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+    <!-- Title for the folder picker during normal app use. -->
+    <string name="folder.add.title.default">Add an audiobook to your shelf</string>
+    <!-- Title for the folder picker when adding the first audiobook during onboarding. -->
+    <string name="folder.add.title.onboarding">Add Your First Audiobook</string>
+    <!-- Button label for adding a single audio file as a book. -->
+    <string name="folder.add.type.file">File</string>
+    <!-- Button label for adding a folder of audiobooks. -->
+    <string name="folder.add.type.folder">Folder</string>
+    <!-- Subtitle asking whether the user wants to add a file or folder. -->
+    <string name="folder.add.type.subtitle">Add a folder and it becomes one book on your shelf — every audio file inside is a chapter. Or add a single audio file as its own book.</string>
+    <!-- Library category header for completed books. -->
+    <string name="library.category.completed.title">Completed</string>
+    <!-- Library category header for books currently being listened to. -->
+    <string name="library.category.current.title">Current</string>
+    <!-- Library category header for books not started yet. -->
+    <string name="library.category.not_started.title">Not started Yet</string>
+    <!-- Library empty-state prompt shown before the first audiobook is added. -->
+    <string name="library.empty.add_first_book">Let\'s add your audiobook folder so you can start listening!</string>
+    <!-- Title for screens and rows that manage audiobook folders. -->
+    <string name="library.folders.title">Audiobook folders</string>
+    <!-- Shown on the card of a book whose audio files were found but could not be analyzed. -->
+    <string name="library.import.error.analysis_failed">Could not analyze the audio files.</string>
+    <!-- Shown on the card of a book of which only some chapters could be analyzed. The quantity is the number of chapters that failed. -->
+    <plurals name="library.import.error.partial">
+        <item quantity="one">%1$d chapter could not be analyzed.</item>
+        <item quantity="other">%1$d chapters could not be analyzed.</item>
+    </plurals>
+    <!-- Action on the card of a book that failed to import, imports the book again. -->
+    <string name="library.import.error.retry">Retry</string>
+    <!-- Shown on the card of a book whose folder could not be read, e.g. because the server is unreachable. -->
+    <string name="library.import.error.unreachable">Could not read this book. Check the connection and try again.</string>
+    <!-- Shown on the card of a book while its chapters are being analyzed. The quantity is the total chapter count. -->
+    <plurals name="library.import.progress">
+        <item quantity="one">Importing %1$d/%2$d chapter</item>
+        <item quantity="other">Importing %1$d/%2$d chapters</item>
+    </plurals>
+    <!-- Shown on the card of a book that was discovered by the scan but whose chapter count isn't known yet. -->
+    <string name="library.import.preparing">Importing… reading files</string>
+    <!-- Content description of the badge that marks a book streamed from the online source. The argument is the source name, e.g. A. -->
+    <string name="library.online.source.badge">Online book from source: %1$s</string>
+    <!-- Hint text for searching books in the library. -->
+    <string name="library.search.hint">What are you looking for?</string>
+    <string name="library.search.clear_history">Clear search history</string>
+    <!-- Button label for granting the storage permission workaround. -->
+    <string name="library.storage_permission_bug.action">Grant permission</string>
+    <!-- Message explaining why a storage permission workaround is needed. -->
+    <string name="library.storage_permission_bug.message">For certain devices, a system app is missing the necessary permission to access the external storage. This access is essential for Timbre to read your audiobooks.</string>
+    <!-- Title for the card explaining a required storage permission workaround. -->
+    <string name="library.storage_permission_bug.title">Permission required</string>
+    <!-- Media browser title for recently played audiobooks. -->
+    <string name="media_session.library.recent">Recent</string>
+    <!-- Media browser root title for all audiobooks. -->
+    <string name="media_session.library.root">All audiobooks</string>
+    <!-- Button label for advancing to the next onboarding step. -->
+    <string name="onboarding.action.next">Next</string>
+    <!-- Button label for continuing with analytics disabled. -->
+    <string name="onboarding.analytics_consent.action.disable">Continue without analytics</string>
+    <!-- Button label for continuing with analytics enabled. -->
+    <string name="onboarding.analytics_consent.action.enable">Continue with analytics</string>
+    <!-- Link label for opening the privacy policy from analytics consent. -->
+    <string name="onboarding.analytics_consent.action.privacy_policy">Privacy Policy</string>
+    <!-- Description for analytics consent during onboarding. -->
+    <string name="onboarding.analytics_consent.description">Allow us to collect anonymous usage data to help improve the app. You can change this later in settings.</string>
+    <!-- Title for analytics consent during onboarding. -->
+    <string name="onboarding.analytics_consent.title">Help improve Timbre</string>
+    <!-- Button label for leaving onboarding and starting playback. -->
+    <string name="onboarding.completion.action.start_listening">Start Listening</string>
+    <!-- Subtitle on the onboarding completion screen. -->
+    <string name="onboarding.completion.subtitle">Your first audiobook is ready to play. Enjoy your journey with Timbre!</string>
+    <!-- Title on the onboarding completion screen. -->
+    <string name="onboarding.completion.title">You\'re All Set!</string>
+    <!-- Subtitle explaining file and folder choices in onboarding. -->
+    <string name="onboarding.explanation.subtitle">Every folder you add becomes one book on your personal bookshelf, with its audio files as chapters.</string>
+    <!-- Title on the onboarding explanation screen. -->
+    <string name="onboarding.explanation.title">Your Library, Your Way</string>
+    <!-- Subtitle on the onboarding welcome screen. -->
+    <string name="onboarding.welcome.subtitle">Your personal pocket audiobook player. Let\'s get you set up.</string>
+    <!-- Title on the onboarding welcome screen. -->
+    <string name="onboarding.welcome.title">Welcome to Timbre!</string>
+    <!-- Label for the playback action that skips forward. -->
+    <string name="playback.action.fast_forward">Fast forward</string>
+    <!-- Content description for a playback button that pauses audio. -->
+    <string name="playback.action.pause">Pause</string>
+    <!-- Content description for a playback button that starts audio. -->
+    <string name="playback.action.play">Play</string>
+    <!-- Content description for a control that toggles playback between play and pause. -->
+    <string name="playback.action.play_pause">Play / Pause</string>
+    <!-- Label for the playback action that skips backward. -->
+    <string name="playback.action.rewind">Rewind</string>
+    <!-- Action label for opening battery optimization settings. -->
+    <string name="playback.battery_optimization.action">Update</string>
+    <!-- Snackbar or prompt text explaining playback issues caused by power restrictions. -->
+    <string name="playback.battery_optimization.rationale">Due to your Power restrictions, playback interruptions might happen.</string>
+    <!-- Content description prefix for the currently playing chapter. -->
+    <string name="playback.chapter.current.content_description">Current chapter</string>
+    <!-- Content description for moving to the next chapter or track. -->
+    <string name="playback.chapter.next">Next track</string>
+    <!-- Content description for moving to the previous chapter or track. -->
+    <string name="playback.chapter.previous">Previous track</string>
+    <!-- Header of the chapter selection sheet showing the total amount of chapters. Tapping it toggles the chapter range grid. -->
+    <string name="playback.chapter.select.total" tools:ignore="PluralsCandidate">%1$d chapters in total</string>
+    <!-- Menu and dialog title for skipping the intro of every chapter of the current book. -->
+    <string name="playback.option.skip_intro">Skip intro</string>
+    <!-- Menu title for the dialog that sets both the intro and the outro skip. -->
+    <string name="playback.option.skip_intro_outro">Skip intro and outro</string>
+    <!-- Menu and dialog title for cutting off the outro of every chapter of the current book. -->
+    <string name="playback.option.skip_outro">Skip outro</string>
+    <!-- Menu label for toggling silence skipping during playback. -->
+    <string name="playback.option.skip_silence">Skip Silence</string>
+    <!-- Menu and dialog title for changing volume gain. -->
+    <string name="playback.option.volume_boost">Volume boost</string>
+    <!-- Value shown when the intro/outro skip is turned off. -->
+    <string name="playback.skip.off">Off</string>
+    <!-- Intro/outro skip duration, e.g. "30 s". -->
+    <string name="playback.skip.seconds">%1$d s</string>
+    <!-- Title and content description for playback-speed controls. -->
+    <string name="playback.speed.title">Playback speed</string>
+    <!-- Negative button for cancelling feedback. -->
+    <string name="review.feedback.action.cancel" tools:ignore="UnusedResources">Cancel</string>
+    <!-- Positive button for sending feedback. -->
+    <string name="review.feedback.action.send" tools:ignore="UnusedResources">Send Feedback</string>
+    <!-- Message for the dialog asking unhappy users for feedback. -->
+    <string name="review.feedback.message" tools:ignore="UnusedResources">Could you tell us what went wrong? We appreciate your feedback and it helps us to improve your experience.</string>
+    <!-- Title for the dialog asking unhappy users for feedback. -->
+    <string name="review.feedback.title" tools:ignore="UnusedResources">We\'re sorry to hear that!</string>
+    <!-- Negative button for dismissing the rating request. -->
+    <string name="review.request.action.dismiss" tools:ignore="UnusedResources">No, Thanks</string>
+    <!-- Positive button for opening the rating flow. -->
+    <string name="review.request.action.rate" tools:ignore="UnusedResources">Rate Now</string>
+    <!-- Message for the dialog asking happy users to rate the app. -->
+    <string name="review.request.message" tools:ignore="UnusedResources">Your feedback matters to us! If you have a moment, rate us and share your experience. It helps us to make improvements and offer a better listening experience.</string>
+    <!-- Title for the dialog asking happy users to rate the app. -->
+    <string name="review.request.title" tools:ignore="UnusedResources">Enjoying Timbre?</string>
+    <!-- Settings about row showing the app version. -->
+    <string name="settings.about.app_version.title">App version</string>
+    <!-- Title and content description for opening settings. -->
+    <string name="settings.action.open">Preferences</string>
+    <!-- Settings row description for analytics consent. -->
+    <string name="settings.analytics_consent.description">Allow anonymous usage data collection to help improve the app</string>
+    <!-- Settings row title for analytics consent. -->
+    <string name="settings.analytics_consent.title">Analytics</string>
+    <!-- Title for the dark theme setting. -->
+    <!-- Settings row title for selecting the app color scheme. -->
+    <string name="settings.appearance.color_scheme.title">Color scheme</string>
+    <!-- Label for selecting Android dynamic color as app color scheme. -->
+    <string name="settings.appearance.color_scheme.dynamic">Dynamic color</string>
+    <!-- Description for Android dynamic color. -->
+    <string name="settings.appearance.color_scheme.dynamic.summary">Uses colors from your wallpaper and system theme.</string>
+    <!-- Label for selecting Voice blue as app color scheme. -->
+    <string name="settings.appearance.color_scheme.voice_blue">Timbre blue</string>
+    <!-- Label for forcing dark mode. -->
+    <string name="settings.appearance.theme.dark">Dark</string>
+    <!-- Label for following the system light or dark setting. -->
+    <string name="settings.appearance.theme.follow_system">Follow system</string>
+    <!-- Label for forcing light mode. -->
+    <string name="settings.appearance.theme.light">Light</string>
+    <!-- Settings row title for selecting light or dark mode behavior. -->
+    <string name="settings.appearance.theme.title">Theme</string>
+    <!-- Label for selecting the automatic sleep timer end time. -->
+    <string name="settings.auto_sleep_timer.end.label" weblate-flags="max-length:16">Set end time</string>
+    <!-- Label for selecting the automatic sleep timer start time. -->
+    <string name="settings.auto_sleep_timer.start.label" weblate-flags="max-length:16">Set start time</string>
+    <!-- Settings summary for the automatic sleep timer time window. -->
+    <string name="settings.auto_sleep_timer.summary">Start a sleep timer automatically when playback begins between %1$s and %2$s</string>
+    <!-- Settings title for automatically starting a sleep timer. -->
+    <string name="settings.auto_sleep_timer.title">Automatic Sleep Timer</string>
+    <!-- Settings row for opening the project's source code on GitHub. -->
+    <string name="settings.github.title">Open source project</string>
+    <!-- Summary text for the audiobook folders settings row. -->
+    <string name="settings.library.folders.summary">Manage folders scanned for audiobooks</string>
+    <!-- Settings row for toggling grid layout in the library. -->
+    <string name="settings.library.use_grid.title">Use grid layout</string>
+    <!-- Title for the setting that rewinds automatically when playback resumes. -->
+    <string name="settings.playback.auto_rewind.title">Auto rewind</string>
+    <!-- Title for the setting that controls skip-forward and rewind duration. -->
+    <string name="settings.playback.seek_time.title">Skip amount</string>
+    <!-- Behavior of the previous/next media buttons (bluetooth, lock screen): chapter skip vs. seek. -->
+    <string name="settings.playback.bt_skip_chapter.title">Bluetooth prev/next skips chapters</string>
+    <string name="settings.playback.import_parallelism.title">Import parallelism</string>
+    <string name="settings.source_share.title">Shared sources</string>
+    <string name="settings.online_source.title">Online book source</string>
+    <string name="settings.online_source.summary">Search and stream audiobooks from your own download server. Off by default.</string>
+    <string name="settings.online_source.base_url_title">Server address</string>
+    <string name="settings.online_source.base_url_hint">http://192.168.1.10:6500</string>
+    <string name="settings.online_source.credential_title">Access key</string>
+    <string name="settings.online_source.credential_hint">Paste the access key of your server</string>
+    <string name="settings.online_source.not_set">Not set</string>
+    <string name="settings.online_source.verifying">Verifying…</string>
+    <string name="search.online.section.title">Online</string>
+    <string name="search.online.error">Failed to reach the online source</string>
+    <string name="search.online.offline">You are currently offline. Connect to the internet and try again.</string>
+    <string name="search.online.no_results">No online results for this source</string>
+    <string name="search.online.chapters.loading">Loading chapter list…</string>
+    <string name="search.online.chapters.loading_count">Loading chapter list, total: %1$d</string>
+    <string name="search.online.chapters.loading_hint">Long books can take a while to load, please wait</string>
+    <string name="search.online.retry">Retry</string>
+    <string name="search.online.chapters.empty">This source returned no chapters for this book</string>
+    <string name="search.online.chapters.count">Total: %1$d</string>
+    <string name="search.online.added_to_shelf">Added to the shelf. Tap a chapter to start playback.</string>
+    <string name="search.online.join_shelf_first">Add the book to the shelf first, then tap a chapter.</string>
+    <string name="online.actions.refresh_chapters">Refresh chapters</string>
+    <string name="online.actions.cache_book">Cache episodes</string>
+    <string name="online.refresh.loading">Refreshing the chapter list…</string>
+    <string name="online.refresh.updated">New chapters: %1$d (of %2$d)</string>
+    <string name="online.refresh.uptodate">Already up to date (%1$d)</string>
+    <string name="online.refresh.failed">Refresh failed: %1$s</string>
+    <string name="online.refresh.failed_unknown">Refresh failed, the stored chapters are kept</string>
+    <string name="online.cache.title">Cache episodes</string>
+    <string name="online.cache.cached">Episodes cached: %1$d / %2$d · %3$s</string>
+    <string name="online.cache.from_current">Starting at the chapter in progress (#%1$d)</string>
+    <string name="online.cache.count_label">Episodes to cache</string>
+    <string name="online.cache.all">All</string>
+    <string name="online.cache.start">Start caching</string>
+    <string name="online.cache.downloading">Caching: %1$d / %2$d (%3$d%%)</string>
+    <string name="online.cache.stop">Stop caching</string>
+    <string name="online.cache.awaiting_confirmation">Paused: waiting for your confirmation to cache over mobile data</string>
+    <string name="online.cache.failed_count">Failed: %1$d</string>
+    <string name="online.cache.clear">Clear cache</string>
+    <string name="online.cache.clear_confirm">Tap again to clear</string>
+    <string name="online.cache.metered_title">Currently on mobile data</string>
+    <string name="online.cache.metered_message">The active network is mobile data. Continuing to cache will use up your data volume.</string>
+    <string name="online.cache.metered_book">Book: %1$s</string>
+    <string name="online.cache.metered_chapters">Episodes this run will cache: %1$d</string>
+    <string name="online.cache.metered_confirm">Continue caching</string>
+    <string name="online.cache.offline_hint">Cached episodes play offline; the rest keeps streaming.</string>
+    <string name="online.cache.delay_label">Episode interval</string>
+    <string name="online.cache.delay_hint">Wait a few seconds after each episode before downloading the next one, to avoid rate-limit failures.</string>
+    <string name="online.cache.delay_none">No delay</string>
+    <string name="online.cache.delay_seconds">%1$d s</string>
+    <string name="online.cache.delay_seconds_custom">Custom interval (s)</string>
+    <string name="playback.online.error.network">Could not reach the online source. Check the connection and the server address.</string>
+    <string name="playback.online.error.offline">You are currently offline. Online audio is unavailable.</string>
+    <string name="playback.online.error.auth">The online source key was rejected. Update it in the settings.</string>
+    <string name="playback.online.error.content">This chapter is not available on the online source.</string>
+    <string name="settings.online_source.error.invalid">Invalid key or server unreachable</string>
+    <string name="settings.online_source.error.need_base_url">Set the server address first</string>
+    <string name="settings.online_source.error.invalid_url">Address must start with http:// or https://</string>
+    <string name="settings.playback.import_parallelism.summary">Chapters analyzed at the same time. Higher imports faster, but chapter switches respond slower while importing.</string>
+    <string name="settings.playback.import_parallelism.value">Concurrency: %1$d</string>
+    <string name="settings.playback.import_parallelism.option">Analyze chapters in parallel: %1$d</string>
+    <string name="settings.player.title">Player settings</string>
+    <string name="settings.player.summary">Online preload, and more player options</string>
+    <string name="settings.playback.online_preload.title">Online playback preload</string>
+    <string name="settings.playback.online_preload.summary">Preloads the next chapters only while playing, paced and capped by the settings below. Entering the player requests nothing. Local and WebDav books are not affected.</string>
+    <string name="settings.playback.online_preload.enabled.title">Preload while playing</string>
+    <string name="settings.playback.online_preload.trigger.title">Preload trigger time</string>
+    <string name="settings.playback.online_preload.trigger.value">After %1$d s of playback</string>
+    <string name="settings.playback.online_preload.count.title">Chapters to preload</string>
+    <string name="settings.playback.online_preload.count.value">Up to %1$d</string>
+    <string name="settings.playback.online_preload.interval.title">Chapter preload interval</string>
+    <string name="settings.playback.online_preload.interval.value">%1$d s between chapters</string>
+    <string name="settings.playback.online_preload.dialog.trigger">Starts preloading after this many seconds of playback. A chapter shorter than this never preloads, and switching chapters resets everything.</string>
+    <string name="settings.playback.online_preload.dialog.count">How many chapters after the current one may hold resolved stream urls.</string>
+    <string name="settings.playback.online_preload.dialog.interval">Pause between two preloaded chapters of the same chain.</string>
+    <string name="settings.playback.bt_skip_chapter.summary">When on, the previous/next buttons on bluetooth and the lock screen jump to the previous/next chapter. When off, they seek back/forward.</string>
+    <!-- Settings row description for opening the donation/support screen. -->
+    <string name="settings.support.support_voice.summary">Donations help keep Timbre maintained</string>
+    <!-- Settings row for opening the donation/support screen. -->
+    <string name="settings.support.support_voice.title">Support development</string>
+    <!-- Support screen action for donating through Ko-fi. -->
+    <string name="support.action.donate_kofi">Donate on Ko-fi</string>
+    <!-- Support screen text explaining why support is useful. -->
+    <string name="support.description.maintenance">Timbre is free, open source, and maintained by one developer.</string>
+    <!-- Support screen text under the main description. -->
+    <string name="support.description.maintenance_subtitle">Donations help fund ongoing maintenance and development.</string>
+    <!-- Support screen heading above the list of what donations enable. -->
+    <string name="support.helps.title">Support helps with</string>
+    <!-- Support screen list item: bug fixes and ongoing maintenance. -->
+    <string name="support.helps.maintenance">Bug fixes and maintenance</string>
+    <!-- Support screen list item: new features. -->
+    <string name="support.helps.features">New features</string>
+    <!-- Support screen list item: keeping Voice free, open source, and ad-free. -->
+    <string name="support.helps.open_source">Keeping Timbre ad-free</string>
+    <!-- Title of the support screen. -->
+    <string name="support.title">Support development</string>
+    <!-- Short label for the launcher shortcut that plays the current book. -->
+    <string name="shortcut.play_current.short_label">Play current</string>
+    <!-- Content description for opening the sleep timer. -->
+    <string name="sleep_timer.action.open">Sleep-Timer</string>
+    <!-- Content description for decreasing the sleep timer duration. -->
+    <string name="sleep_timer.dialog.action.decrement">Shorter</string>
+    <!-- Content description for increasing the sleep timer duration. -->
+    <string name="sleep_timer.dialog.action.increment">Longer</string>
+    <!-- Title of the sleep timer dialog. -->
+    <string name="sleep_timer.dialog.title">Sweet dreams! 🌙</string>
+    <!-- Sleep timer option and playback status for stopping at the end of a chapter. -->
+    <string name="sleep_timer.end_of_chapter">End of Chapter</string>
+    <!-- Dialog title when a newer version was published. -->
+    <string name="update.dialog.title">Update available</string>
+    <!-- Dialog body when a newer version was published. -->
+    <string name="update.dialog.message">Version %1$s is available. Do you want to update now?</string>
+    <!-- Dialog button for opening the page of the latest release. -->
+    <string name="update.dialog.confirm">Update now</string>
+    <!-- Title above the release notes in the update dialog. -->
+    <string name="update.dialog.notes_title">What\'s new</string>
+    <!-- Shown in the version row of the settings when a newer version was published. -->
+    <string name="settings.about.app_version.update_available">Update to %1$s available</string>
+
+    <!-- WebDAV -->
+    <string name="webdav_title">WebDAV</string>
+    <string name="webdav_settings_summary">Stream audiobooks from your NAS without using phone storage</string>
+    <string name="settings_library_auto_refresh_wifi_title">Only refresh the shelf automatically on Wi-Fi</string>
+    <string name="settings_library_auto_refresh_wifi_summary">Avoid automatic WebDAV refreshes on mobile data</string>
+    <string name="webdav_server_add">Add server</string>
+    <string name="webdav_server_edit">Edit server</string>
+    <string name="webdav_server_name">Name</string>
+    <string name="webdav_server_url">Server address (https://…)</string>
+    <string name="webdav_server_username">Username</string>
+    <string name="webdav_server_password">Password</string>
+    <string name="webdav_server_password_keep">Password (leave empty to keep)</string>
+    <string name="webdav_server_trust_all">Trust all certificates</string>
+    <string name="webdav_server_trust_all_summary">For self-signed certificates. Only enable on trusted networks.</string>
+    <string name="webdav_server_delete">Delete server</string>
+    <string name="webdav_delete_server_message">Removes the server and its book registrations. Files on your NAS are not touched.</string>
+    <string name="webdav_delete">Delete</string>
+    <string name="webdav_test_connection">Test connection</string>
+    <string name="webdav_test_ok">Connection successful, streaming supported</string>
+    <string name="webdav_test_range_missing">Connected, but the server does not support range requests. Streaming will not work reliably.</string>
+    <string name="webdav_test_auth_failed">Authentication failed. Check username and password.</string>
+    <string name="webdav_test_cert_failed">Certificate error. Enable "Trust all certificates" for self-signed certificates.</string>
+    <string name="webdav_test_network_failed">Could not reach the server. Check the network and the address.</string>
+    <string name="webdav_test_invalid_address">Invalid address. It must start with http:// or https://</string>
+    <string name="webdav_save">Save</string>
+    <string name="webdav_empty">No servers yet. Add your NAS to stream audiobooks without using phone storage.</string>
+    <string name="webdav_error">Something went wrong</string>
+    <!-- The stored password could not be used, e.g. after a reinstall. -->
+    <string name="webdav_error_auth">Authentication failed. If the app was reinstalled, edit the server and re-enter the password.</string>
+    <!-- Badge under a server whose stored password cannot be decrypted. -->
+    <string name="webdav_password_reentry">Re-enter the password</string>
+    <string name="webdav_browse">Browse and add books</string>
+    <string name="webdav_browse_up">Up</string>
+    <string name="webdav_add_as_book">Add folder as book</string>
+    <string name="webdav_add_as_library_root">Add subfolders as books</string>
+    <string name="webdav_http_hint">Tip: without HTTPS the password travels unencrypted.</string>
+    <string name="folder_add_type_webdav">WebDAV</string>
+    <string name="webdav_cache_title">Playback cache</string>
+    <string name="webdav_cache_settings_summary">Cache limit and prefetching</string>
+    <string name="webdav_cache_usage">Cached: %1$s of %2$s</string>
+    <string name="webdav_cache_clear">Clear cache</string>
+    <string name="webdav_cache_clear_confirm">Deletes all cached audio. Streamed data will be downloaded again when needed.</string>
+    <string name="webdav_cache_max">Cache limit</string>
+    <string name="webdav_cache_max_off">Off</string>
+    <string name="webdav_cache_prefetch">Prefetch upcoming chapters</string>
+    <string name="webdav_cache_prefetch_fill">Whole book</string>
+    <string name="webdav_cache_prefetch_20">20 chapters</string>
+    <string name="webdav_cache_prefetch_5">5 chapters</string>
+    <string name="webdav_cache_prefetch_off">Off</string>
+    <string name="webdav_cache_metered">Prefetch on metered networks</string>
+
+    <!-- Extension sources (.jdr packages) -->
+    <string name="extensions_title">Extension sources</string>
+    <string name="extensions_import_file">Import .jdr package</string>
+    <string name="extensions_import_file_summary">Pick a local .jdr file</string>
+    <string name="extensions_import_url">Import from link</string>
+    <string name="extensions_import_url_summary">Download and install a .jdr package from a URL</string>
+    <string name="extensions_import_url_hint">https://example.com/source.jdr</string>
+    <string name="extensions_import">Import</string>
+    <string name="extensions_empty">No extension sources installed. Import a .jdr package to add local search sources.</string>
+    <string name="extensions_package_version">Version %1$s</string>
+    <string name="extensions_package_author">By %1$s</string>
+    <string name="extensions_uninstall">Uninstall package</string>
+    <string name="extensions_uninstall_confirm">Uninstall this package? Its sources disappear from search; books already on the shelf keep working until removed.</string>
+    <string name="settings_extensions_title">Extension sources</string>
+    <string name="settings_extensions_summary">Import and manage .jdr interface sources</string>
+    <string name="folder_add_type_source">Import source</string>
+    <string name="folder_add_source_title">Import source</string>
+    <string name="folder_add_source_url_hint">Source link (https://…/source.jdr)</string>
+    <string name="folder_add_source_pick_file">Pick a local .jdr file</string>
+    <string name="folder_add_source_confirm">Import</string>
+</resources>

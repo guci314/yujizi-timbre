@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_call: { }
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# the junit report action publishes its results as a check run, which needs
+# checks: write. Without it the report step fails with "Resource not
+# accessible by integration" and hides the real test failures
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build_setup
+      - name: Lint
+        run: ./gradlew :app:lintFreeDebug
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/**/*.html
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build_setup
+      - name: Check locale config
+        run: ./scripts/check_locale_config.main.kts
+      # formatting runs first: a ktlint failure used to abort Gradle *while*
+      # test workers were running, and those workers then ignored the
+      # cancellation and pinned the job until its 30 minute timeout
+      - name: Formatting (ktlint)
+        run: ./gradlew lintKotlin
+      - name: Build APK
+        run: ./gradlew :app:assembleFreeDebug
+      # one worker: Gradle logs "> Task X" when a task *starts* and never logs
+      # completion, so with parallel workers a hang leaves several candidates.
+      # Serialised the last started task is the one that never returned.
+      - name: Tests + Build
+        # a normal unit run takes ~4 minutes; 8 minutes is plenty and a hang
+        # costs the half of what the job level 30 minute timeout would
+        timeout-minutes: 8
+        run: ./gradlew voiceUnitTest --max-workers=1
+      - name: Publish JUnit Report
+        uses: mikepenz/action-junit-report@v6
+        if: always()
+        with:
+          report_paths: '**/test-results/**/TEST-*.xml'
+          check_name: "Unit Tests"
+
+  instrumentation:
+    # Temporarily disable
+    if: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build_setup
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Accept Android Licenses
+        run: yes | "$ANDROID_HOME"/cmdline-tools/latest/bin/sdkmanager --licenses || true
+      - name: Setup Managed Devices
+        run: ./gradlew voiceDeviceSetup -Pandroid.testoptions.manageddevices.emulator.gpu="swiftshader_indirect"
+      - name: Run Instrumentation Tests
+        run: ./gradlew voiceDeviceFreeDebugAndroidTest -Pandroid.testoptions.manageddevices.emulator.gpu="swiftshader_indirect"
+      - name: Publish JUnit Report
+        uses: mikepenz/action-junit-report@v6
+        if: always()
+        with:
+          report_paths: '**/test-results/**/TEST-*.xml'
+          check_name: "Instrumentation Tests"

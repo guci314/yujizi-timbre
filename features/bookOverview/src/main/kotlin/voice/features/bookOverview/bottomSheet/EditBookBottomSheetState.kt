@@ -1,0 +1,22 @@
+package voice.features.bookOverview.bottomSheet
+
+import androidx.annotation.StringRes
+import androidx.compose.ui.graphics.vector.ImageVector
+import voice.core.ui.icons.VoiceIcons
+import voice.core.strings.R as StringsR
+
+internal data class EditBookBottomSheetState(val items: List<BottomSheetItem>)
+
+enum class BottomSheetItem(
+  @StringRes val titleRes: Int,
+  val icon: ImageVector,
+) {
+  Title(StringsR.string.book_edit_name_label, VoiceIcons.Title),
+  FileCover(StringsR.string.book_edit_cover_file, VoiceIcons.Image),
+  OnlineRefreshChapters(StringsR.string.online_actions_refresh_chapters, VoiceIcons.Sync),
+  OnlineCacheBook(StringsR.string.online_actions_cache_book, VoiceIcons.Download),
+  DeleteBook(StringsR.string.book_delete_bottom_sheet_title, VoiceIcons.Delete),
+  BookCategoryMarkAsNotStarted(StringsR.string.book_category_action_mark_not_started, VoiceIcons.HourglassEmpty),
+  BookCategoryMarkAsCurrent(StringsR.string.book_category_action_mark_current, VoiceIcons.NotStarted),
+  BookCategoryMarkAsCompleted(StringsR.string.book_category_action_mark_completed, VoiceIcons.Done),
+}

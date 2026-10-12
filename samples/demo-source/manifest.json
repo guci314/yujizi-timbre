@@ -1,0 +1,17 @@
+{
+  "id": "com.example.demosource",
+  "name": "示例接口源",
+  "version": "1.0.0",
+  "author": "Timbre",
+  "description": "最小示例：普通 HTTP 接口的搜索/章节/音频三阶段演示（地址为占位，需替换成真实接口）",
+  "homepage": "",
+  "allowInsecure": false,
+  "sources": [
+    {
+      "id": "demosource",
+      "name": "示例源",
+      "script": "demo.js",
+      "capabilities": ["search", "chapters", "audio"]
+    }
+  ]
+}

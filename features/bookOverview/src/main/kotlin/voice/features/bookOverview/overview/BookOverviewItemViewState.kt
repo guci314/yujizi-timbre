@@ -1,0 +1,45 @@
+package voice.features.bookOverview.overview
+
+import androidx.compose.runtime.Immutable
+import voice.core.data.Book
+import voice.core.data.BookId
+import voice.core.logging.api.Logger
+import voice.core.scanner.BookScanError
+import voice.core.scanner.BookScanProgress
+import voice.core.ui.formatTime
+
+@Immutable
+data class BookOverviewItemViewState(
+  val name: String,
+  val author: String?,
+  val cover: String?,
+  val progress: Float,
+  val id: BookId,
+  val remainingTime: String,
+  val importProgress: BookScanProgress? = null,
+  val importError: BookScanError? = null,
+)
+
+internal fun Book.toItemViewState(
+  importProgress: BookScanProgress? = null,
+  importError: BookScanError? = null,
+) = BookOverviewItemViewState(
+  name = content.name,
+  author = content.author,
+  cover = content.coverUrl,
+  id = id,
+  progress = progress(),
+  remainingTime = formatTime(duration - position),
+  importProgress = importProgress,
+  importError = importError,
+)
+
+private fun Book.progress(): Float {
+  val globalPosition = position
+  val totalDuration = duration
+  val progress = globalPosition.toFloat() / totalDuration.toFloat()
+  if (progress < 0F) {
+    Logger.w("Couldn't determine progress for book=$this")
+  }
+  return progress.coerceIn(0F, 1F)
+}

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社区分享 — Timbre · 听书</title>
+<meta name="description" content="Timbre 接口源社区分享：浏览大家分享的 .jdr 接口源，或一键提交你自己的接口源。">
+<link rel="canonical" href="https://cq10086123.github.io/Timbre/share.html">
+<meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141518" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="接口源社区分享 — Timbre · 听书">
+<meta property="og:url" content="https://cq10086123.github.io/Timbre/share.html">
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/cq10086123/Timbre/main/artwork/public/timbre/timbre-icon-512.png">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <img src="https://raw.githubusercontent.com/cq10086123/Timbre/main/artwork/public/timbre/timbre-icon-512.png" alt="">
+      <b>Timbre · 听书</b>
+    </a>
+    <nav class="topnav">
+      <a href="./#features" class="hide-s">功能</a>
+      <a href="./#jdr">接口源</a>
+      <a href="share.html">社区分享</a>
+      <a href="https://github.com/cq10086123/Timbre" class="hide-s">GitHub</a>
+      <a class="dl" href="https://github.com/cq10086123/Timbre/releases/latest">下载最新版</a>
+    </nav>
+  </div>
+</header>
+
+<section class="section" style="padding-bottom:28px">
+  <div class="wrap">
+    <span class="overline">Interface Sources</span>
+    <h1 style="font-size:clamp(1.8rem,3.6vw,2.5rem)">社区分享</h1>
+    <p class="lede">这里的每一条分享都来自 Issue 区，由维护者审核后才可能进入首页精选。发现违规内容请点开对应条目举报。</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:8px">
+  <div class="wrap">
+    <div class="panel">
+      <div class="col">
+        <h3>精选：接口源合集</h3>
+        <p>维护者维护的官方接口源包，含多个免密接口，导入即用。</p>
+        <div class="install-box">
+          <code>https://raw.githubusercontent.com/cq10086123/Timbre/refs/heads/main/samples/Timbre.jdr</code>
+          <button class="copybtn" data-copy="https://raw.githubusercontent.com/cq10086123/Timbre/refs/heads/main/samples/Timbre.jdr">复制</button>
+        </div>
+        <p><a class="btn primary" href="https://github.com/cq10086123/Timbre/blob/main/samples/Timbre.jdr">⬇ 下载 .jdr</a></p>
+        <p class="notice">⚠ 注意：部分接口源有请求限制，请勿频繁切换；部分接口支持缓存，因接口而异。</p>
+      </div>
+      <div class="col">
+        <h3>我要分享我的接口源</h3>
+        <p>写好了自己的 <code>.jdr</code>？把它上传到你能控制的地方（自己仓库的 Release、网盘等），然后用分享模板提交一条 Issue 即可。</p>
+        <ul>
+          <li>只分享接口源本身，不要包含音频文件</li>
+          <li>不要贴你个人的服务器地址和密钥</li>
+          <li>分享会被公开可见，请自行把握内容</li>
+        </ul>
+        <p style="margin-top:14px"><a class="btn quiet" href="https://github.com/cq10086123/Timbre/issues/new?template=1-source-share.yml">打开分享模板 →</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="list">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>大家的分享</h2>
+      <p>以下条目由 <a href="https://github.com/cq10086123/Timbre/issues?q=label%3A%22source-share%22">Issue 分享区</a>自动同步（未关闭、带 source-share 标签）。导入来历不明的接口源前请自行判断内容。</p>
+    </div>
+    <div class="share-list" id="share-list">
+      <div class="state">正在加载分享列表…</div>
+    </div>
+    <p style="margin-top:18px"><a class="btn quiet" href="https://github.com/cq10086123/Timbre/issues?q=label%3A%22source-share%22">在 GitHub 上查看全部 →</a></p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <b>Timbre · 听书</b>
+      <div class="fine">自由开源（GPL-3.0），由一名开发者在业余时间维护。</div>
+    </div>
+    <div>
+      <a href="https://github.com/cq10086123/Timbre">GitHub</a> ·
+      <a href="https://github.com/cq10086123/Timbre/releases">发布页</a> ·
+      <a href="https://github.com/cq10086123/Timbre/issues/new?template=1-source-share.yml">分享接口源</a> ·
+      <a href="https://github.com/cq10086123/Timbre/blob/main/docs/faq.md">常见问题</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  /* 复制按钮 */
+  document.querySelectorAll('.copybtn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var text = btn.getAttribute('data-copy');
+      function done(){ btn.textContent = '已复制'; btn.classList.add('done');
+        setTimeout(function(){ btn.textContent = '复制'; btn.classList.remove('done'); }, 1800); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done);
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta); done();
+      }
+    });
+  });
+
+  /* 拉取分享 Issue */
+  var list = document.getElementById('share-list');
+  var API = 'https://api.github.com/repos/cq10086123/Timbre/issues?labels=source-share&state=open&per_page=30';
+
+  function esc(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function fmtDate(iso){ try { return new Date(iso).toLocaleDateString('zh-CN'); } catch(e){ return ''; } }
+
+  function firstLink(body){
+    if(!body) return null;
+    var m = body.match(/https?:\/\/[^\s\)\]>"']+/g);
+    if(!m) return null;
+    /* 优先返回 .jdr 直链 */
+    for(var i=0;i<m.length;i++){ if(/\.jdr(\?|$)/.test(m[i])) return m[i]; }
+    return m[0];
+  }
+  function excerpt(body){
+    if(!body) return '';
+    return body.split('\n')
+      .map(function(l){ return l.trim(); })
+      .filter(function(l){ return l && l.indexOf('###') !== 0 && l.indexOf('_') !== 0 && !/^https?:\/\//.test(l); })
+      .join(' · ')
+      .slice(0, 140);
+  }
+
+  fetch(API).then(function(r){
+    if(r.status === 403 || r.status === 429){
+      list.innerHTML = '<div class="state">GitHub API 请求达到限流，请稍后刷新，或直接到 ' +
+        '<a href="https://github.com/cq10086123/Timbre/issues?q=label%3A%22source-share%22">Issue 分享区</a> 查看。</div>';
+      return;
+    }
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(issues){
+    if(!issues) return;
+    if(!issues.length){
+      list.innerHTML = '<div class="state">还没有公开的分享。成为第一个吧 → ' +
+        '<a href="https://github.com/cq10086123/Timbre/issues/new?template=1-source-share.yml">打开分享模板</a></div>';
+      return;
+    }
+    list.innerHTML = '';
+    issues.forEach(function(it){
+      var title = (it.title || '').replace(/^\[接口源\]\s*/, '');
+      var card = document.createElement('div');
+      card.className = 'share-card';
+      var url = firstLink(it.body);
+      var ex = excerpt(it.body);
+      var html = '<div class="row1">' +
+        '<h3><a href="' + it.html_url + '" target="_blank" rel="noopener">' + esc(title) + '</a></h3>' +
+        '<span class="meta"><img src="' + it.user.avatar_url + '" alt="">' +
+        '<a href="' + it.user.html_url + '" target="_blank" rel="noopener">' + esc(it.user.login) + '</a>' +
+        ' · ' + fmtDate(it.created_at) + '</span></div>';
+      if(ex) html += '<div class="excerpt">' + esc(ex) + '</div>';
+      html += '<div class="actions">';
+      if(url) html += '<a class="chip" href="' + esc(url) + '" target="_blank" rel="noopener">获取接口直链 ↗</a>';
+      html += '<a class="chip" href="' + it.html_url + '" target="_blank" rel="noopener">查看详情与评论</a>';
+      html += '</div>';
+      card.innerHTML = html;
+      list.appendChild(card);
+    });
+  }).catch(function(e){
+    list.innerHTML = '<div class="state">加载失败：' + esc(e.message || e) +
+      '。可直接到 <a href="https://github.com/cq10086123/Timbre/issues?q=label%3A%22source-share%22">Issue 分享区</a> 查看。</div>';
+  });
+})();
+</script>
+</body>
+</html>

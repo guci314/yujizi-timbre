@@ -1,0 +1,38 @@
+/.specify
+/site
+*.iml
+*.apk
+*.log
+.DS_Store
+.gradle/
+.transifexrc
+/.idea/copilot.data.migration.ask.xml
+/.idea/copilot.data.migration.ask2agent.xml
+/.idea/deviceManager.xml
+/.kotlin
+/fastlane/README.md
+/fastlane/report.xml
+Gemfile.lock
+/artwork/package-lock.json
+artifacts
+build
+captures
+google-services.json
+local.properties
+play_service_account.json
+*.keystore
+signing.properties
+releases
+reports
+testResults
+/plugins/.idea/workspace.xml
+
+# ZCode local session data
+/.zcode
+# stray extension packages at repo root (canonical ones live in samples/)
+/*.jdr
+
+# accidental CI/API dumps: ignore root-level json, whitelist the real config
+/*.json
+!/update.json
+!/renovate.json

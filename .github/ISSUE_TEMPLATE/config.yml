@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 常见问题（FAQ）
+    url: https://github.com/cq10086123/Timbre/blob/main/docs/faq.md
+    about: 更新提示、封面、格式支持、删除书籍等常见疑问，先看这里
+  - name: 功能说明与使用文档
+    url: https://github.com/cq10086123/Timbre/blob/main/docs/index.md
+    about: WebDAV 配置、接口源导入、书库整理等操作指引

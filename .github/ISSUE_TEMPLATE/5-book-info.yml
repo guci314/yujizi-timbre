@@ -1,0 +1,120 @@
+name: 书籍信息问题
+description: 导入后书名、作者、封面、章节或时长识别不正确
+title: "[书籍信息] "
+labels: [ "metadata" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        导入成功、但信息不对？这类问题大多和**文件是怎么放的**有关，
+        写清目录结构基本能一次定位。
+
+        提交前可以先看这两处：
+        - [FAQ · 怎么换封面？](https://github.com/cq10086123/Timbre/blob/main/docs/faq.md)
+        - [README · 使用小贴士](https://github.com/cq10086123/Timbre/blob/main/README.md)
+          （封面自动识别的规则、长按书籍菜单里能改什么）
+
+        如果 App 直接闪退、或播放没有声音，请改用「Bug 报告」模板，那样能带上更多排查信息。
+
+  - type: dropdown
+    id: aspect
+    attributes:
+      label: 哪里不对
+      description: 选最主要的一项
+      options:
+        - 书名或作者不正确
+        - 封面没显示 / 显示成了别的图
+        - 章节顺序或章节名不正确
+        - 时长显示不正确
+        - 一本书被拆成多本 / 多本合成一本
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-wrong
+    attributes:
+      label: 具体情况
+      description: 实际显示的是什么？你期望显示什么？
+      placeholder: |
+        例如：导入后书名显示成了文件夹名「有声书001」，
+        期望显示成音频标签里的《书名》。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: 书籍来源
+      options:
+        - 本地文件（手机存储 / 存储卡 / U 盘）
+        - WebDAV / NAS
+        - 在线书源
+        - 接口源（.jdr 扩展包）
+    validations:
+      required: true
+
+  - type: textarea
+    id: layout
+    attributes:
+      label: 文件是怎么放的
+      description: |
+        把目录结构贴出来，或截图文件管理器。识别规则很依赖这个：
+        是一个书名一个文件夹，还是音频平铺在一起？封面图放在哪一层？
+      placeholder: |
+        例如：
+        /有声书/书名A/
+          01 第一章.mp3
+          02 第二章.mp3
+          cover.jpg
+        /有声书/书名B/
+          01 第一章.mp3
+          （这个文件夹里没有封面图）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cover-files
+    attributes:
+      label: 音频文件夹里有没有放封面图片
+      options:
+        - 有，文件名是 cover.jpg / artwork.png 这类
+        - 有，但文件名是别的
+        - 没有放
+        - 不确定
+    validations:
+      required: false
+
+  - type: input
+    id: sample-name
+    attributes:
+      label: 出问题的书名或文件名原文
+      description: 原样复制一份，方便复现解析过程
+      placeholder: "01 第一章.mp3"
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Timbre 版本
+      description: 在「设置 → 软件版本」里查看
+      placeholder: "3.2.523"
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 截图
+      description: 书架或书籍详情页的截图，直接拖进输入框
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索过已有 Issue，确认这不是重复反馈
+          required: true

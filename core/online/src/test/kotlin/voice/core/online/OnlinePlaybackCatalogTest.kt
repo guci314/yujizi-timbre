@@ -1,0 +1,572 @@
+package voice.core.online
+
+import androidx.datastore.core.DataStore
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
+import voice.core.data.BookId
+import voice.core.data.ChapterId
+import voice.core.online.ResolvedStream
+import kotlin.io.path.createTempDirectory
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
+
+class OnlinePlaybackCatalogTest {
+
+  private val service = mockk<OnlineSourceService>()
+  private val chapterStore = OnlineChapterStore(createTempDirectory("online-chapters").toFile())
+  private val catalog = OnlinePlaybackCatalog(service, FakeBooksStore(), chapterStore)
+
+  private fun shelfBook() = OnlineBook(
+    source = SOURCE,
+    bookId = BOOK_ID,
+    title = "凡人修仙传",
+    author = "忘语",
+    chapters = listOf(
+      OnlineChapter(id = "c1", title = "第1集 二愣子", durationSeconds = 1800),
+      OnlineChapter(id = "c2", title = "第2集 青牛镇", durationSeconds = 1750),
+      OnlineChapter(id = "c3", title = "第3集", durationSeconds = 0),
+    ),
+  )
+
+  private fun bookId(): BookId = BookId(OnlineUri.buildBookUri(SOURCE, BOOK_ID))
+
+  @Test
+  fun `book uri round trip`() {
+    val uri = OnlineUri.buildBookUri("A", "abc/42")
+    assertEquals(OnlineBookRef("A", "abc/42"), OnlineUri.parseBookUri(uri))
+  }
+
+  @Test
+  fun `non online uris do not parse as book`() {
+    assertNull(OnlineUri.parseBookUri("https://example.com/a"))
+    assertNull(OnlineUri.parseBookUri("online://play?s=A&b=42&c=1"))
+    assertNull(OnlineUri.parseBookUri("online://book/A"))
+  }
+
+  @Test
+  fun `isOnlineBookId only accepts online book uris`() {
+    assertTrue(catalog.isOnlineBookId(bookId()))
+    assertFalse(catalog.isOnlineBookId(BookId("content://media/1")))
+  }
+
+  @Test
+  fun `synthesizes a book with online chapter uris`() = runTest {
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns shelfBook()
+
+    val book = assertNotNull(catalog.book(bookId()))
+    assertEquals("凡人修仙传", book.content.name)
+    assertEquals("忘语", book.content.author)
+    assertEquals(3, book.chapters.size)
+    assertEquals(
+      OnlineUri.build(SOURCE, BOOK_ID, "c1"),
+      book.content.currentChapter.value,
+    )
+    assertEquals(1_800_000L, book.chapters[0].duration)
+    // an unknown duration falls back to a generous default so the player
+    // never believes the chapter is over after a second
+    assertEquals(30 * 60_000L, book.chapters[2].duration)
+    assertEquals(0L, book.content.positionInChapter)
+  }
+
+  @Test
+  fun `starts at the requested chapter`() = runTest {
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns shelfBook()
+    catalog.requestStartAt(SOURCE, BOOK_ID, "c2")
+
+    val book = assertNotNull(catalog.book(bookId()))
+    assertEquals(OnlineUri.build(SOURCE, BOOK_ID, "c2"), book.content.currentChapter.value)
+    assertEquals(0L, book.content.positionInChapter)
+  }
+
+  @Test
+  fun `returns null for non online book ids and unknown shelf entries`() = runTest {
+    coEvery { service.shelfBook(any()) } returns null
+
+    assertNull(catalog.book(BookId("content://media/1")))
+    assertNull(catalog.book(bookId()))
+    assertNull(catalog.content(bookId()))
+  }
+
+  @Test
+  fun `search stashed book plays without a shelf entry`() = runTest {
+    coEvery { service.shelfBook(any()) } returns null
+    catalog.stashForPlayback(shelfBook().copy(cover = "https://example.com/cover.jpg"))
+
+    // both the player and the player screen assemble the book: the stash
+    // must survive the first assembly
+    assertNotNull(catalog.book(bookId()))
+    val book = assertNotNull(catalog.book(bookId()))
+    assertEquals(3, book.chapters.size)
+    assertEquals("https://example.com/cover.jpg", catalog.onlineCover(bookId()))
+  }
+
+  @Test
+  fun `shelf book wins over a stale search stash`() = runTest {
+    coEvery { service.shelfBook(any()) } returns shelfBook().copy(title = "书架上的新版")
+    catalog.stashForPlayback(shelfBook().copy(title = "搜索时的旧版"))
+
+    assertEquals("书架上的新版", assertNotNull(catalog.book(bookId())).content.name)
+  }
+
+  @Test
+  fun `measured durations are keyed by source`() = runTest {
+    coEvery { service.shelfBook(any()) } returns null
+    val thirdPartyId = BookId(OnlineUri.buildBookUri("A", BOOK_ID))
+    catalog.stashForPlayback(shelfBook().copy(source = "A", cover = "https://example.com/a.jpg"))
+
+    // a measurement for source B must not leak into source A books
+    catalog.recordMeasuredDuration("B", BOOK_ID, "c3", 120_000L)
+    assertEquals(30 * 60_000L, assertNotNull(catalog.book(thirdPartyId)).chapters[2].duration)
+
+    catalog.recordMeasuredDuration("A", BOOK_ID, "c3", 90_000L)
+    catalog.stashForPlayback(shelfBook().copy(source = "A"))
+    assertEquals(90_000L, assertNotNull(catalog.book(thirdPartyId)).chapters[2].duration)
+  }
+
+  @Test
+  fun `resolved stream urls are reused until they are invalidated`() = runTest {
+    // the player re-opens the stream on every seek: asking the source again
+    // would stall the chapter the user is already listening to
+    val ref = OnlineChapterRef(THIRD_PARTY_SOURCE, BOOK_ID, "c1")
+    coEvery { service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1") } returns ResolvedStream(STREAM_URL)
+
+    assertEquals(STREAM_URL, catalog.resolveStreamUrl(ref)?.url)
+    assertEquals(STREAM_URL, catalog.resolveStreamUrl(ref)?.url)
+    coVerify(exactly = 1) { val _ = service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1") }
+
+    // a signed link the server rejects is dropped, so the next resolve is fresh
+    assertTrue(catalog.invalidateStreamUrl(ref))
+    assertEquals(STREAM_URL, catalog.resolveStreamUrl(ref)?.url)
+    coVerify(exactly = 2) {
+      val _ = service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1")
+    }
+    // always true: the data source retries once even when nothing was cached
+    assertTrue(catalog.invalidateStreamUrl(OnlineChapterRef(THIRD_PARTY_SOURCE, BOOK_ID, "unknown")))
+  }
+
+  @Test
+  fun `content skips building chapter rows`() = runTest {
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns shelfBook()
+    val content = assertNotNull(catalog.content(bookId()))
+    assertEquals("凡人修仙传", content.name)
+    assertEquals(3, content.chapters.size)
+    assertEquals(OnlineUri.build(SOURCE, BOOK_ID, "c1"), content.currentChapter.value)
+  }
+
+  @Test
+  fun `concurrent resolves of the same chapter share one source call`() = runTest {
+    val ref = OnlineChapterRef(THIRD_PARTY_SOURCE, BOOK_ID, "c1")
+    val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+    var calls = 0
+    coEvery { service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1") } coAnswers {
+      calls++
+      started.complete(Unit)
+      release.await()
+      ResolvedStream(STREAM_URL)
+    }
+
+    // stay on the test scheduler: Dispatchers.Default + runTest can leave the
+    // suite waiting on non-deterministic thread hand-offs under CI load
+    val first = async { catalog.resolveStreamUrl(ref) }
+    started.await()
+    val second = async { catalog.resolveStreamUrl(ref) }
+    // give the second caller a moment to attach to the in-flight deferred
+    yield()
+    release.complete(Unit)
+
+    assertEquals(STREAM_URL, first.await()?.url)
+    assertEquals(STREAM_URL, second.await()?.url)
+    assertEquals(1, calls)
+  }
+
+  @Test
+  fun `invalidate prevents a racing resolve from re-caching a rejected url`() = runTest {
+    val ref = OnlineChapterRef(THIRD_PARTY_SOURCE, BOOK_ID, "c1")
+    val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+    coEvery { service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1") } coAnswers {
+      started.complete(Unit)
+      release.await()
+      ResolvedStream("https://cdn.example.com/rejected.mp3")
+    }
+
+    val slow = async { catalog.resolveStreamUrl(ref) }
+    started.await()
+    // data source rejected the url while resolve is still finishing
+    assertTrue(catalog.invalidateStreamUrl(ref))
+    release.complete(Unit)
+    assertEquals("https://cdn.example.com/rejected.mp3", slow.await()?.url)
+
+    // next resolve must hit the source again instead of serving the rejected url
+    coEvery { service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1") } returns ResolvedStream(STREAM_URL)
+    assertEquals(STREAM_URL, catalog.resolveStreamUrl(ref)?.url)
+    coVerify(atLeast = 2) {
+      val _ = service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1")
+    }
+  }
+
+  @Test
+  fun `the resolving state is reported per book`() = runTest {
+    val ref = OnlineChapterRef(THIRD_PARTY_SOURCE, BOOK_ID, "c1")
+    var resolvingWhileRunning: Set<String>? = null
+    coEvery { service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1") } coAnswers {
+      resolvingWhileRunning = catalog.resolvingBooks.value
+      ResolvedStream(STREAM_URL)
+    }
+
+    assertTrue(catalog.resolvingBooks.value.isEmpty())
+    assertEquals(STREAM_URL, catalog.resolveStreamUrl(ref)?.url)
+
+    assertEquals(
+      expected = setOf(OnlineUri.buildBookUri(THIRD_PARTY_SOURCE, BOOK_ID)),
+      actual = resolvingWhileRunning,
+    )
+    assertTrue(catalog.resolvingBooks.value.isEmpty())
+  }
+
+  @Test
+  fun `a failed resolve clears the resolving state again`() = runTest {
+    coEvery { service.resolveDirectUrl(THIRD_PARTY_SOURCE, BOOK_ID, "c1") } returns null
+
+    assertNull(catalog.resolveStreamUrl(OnlineChapterRef(THIRD_PARTY_SOURCE, BOOK_ID, "c1")))
+    assertTrue(catalog.resolvingBooks.value.isEmpty())
+  }
+
+  @Test
+  fun `a persisted shelf position resumes the book`() = runTest {
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns
+      shelfBook().copy(currentChapterId = "c2", positionMs = 42_000L)
+    val catalog = OnlinePlaybackCatalog(service, FakeBooksStore(), chapterStore)
+
+    val book = assertNotNull(catalog.book(bookId()))
+    assertEquals(OnlineUri.build(SOURCE, BOOK_ID, "c2"), book.content.currentChapter.value)
+    assertEquals(42_000L, book.content.positionInChapter)
+  }
+
+  @Test
+  fun `a session position wins over the persisted one`() = runTest {
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns
+      shelfBook().copy(currentChapterId = "c2", positionMs = 42_000L)
+    val catalog = OnlinePlaybackCatalog(service, FakeBooksStore(), chapterStore)
+
+    catalog.updatePosition(
+      bookId = bookId(),
+      chapterId = ChapterId(OnlineUri.build(SOURCE, BOOK_ID, "c3")),
+      positionMs = 5_000L,
+    )
+
+    val book = assertNotNull(catalog.book(bookId()))
+    assertEquals(OnlineUri.build(SOURCE, BOOK_ID, "c3"), book.content.currentChapter.value)
+    assertEquals(5_000L, book.content.positionInChapter)
+  }
+
+  @Test
+  fun `updatePosition persists to the shelf entry`() = runTest {
+    val store = FakeBooksStore(listOf(shelfBook()))
+    val catalog = OnlinePlaybackCatalog(service, store, chapterStore)
+
+    catalog.updatePosition(
+      bookId = bookId(),
+      chapterId = ChapterId(OnlineUri.build(SOURCE, BOOK_ID, "c2")),
+      positionMs = 42_000L,
+    )
+
+    awaitStoreChapter(store, "c2")
+    val stored = store.data.first().single()
+    assertEquals("c2", stored.currentChapterId)
+    assertEquals(42_000L, stored.positionMs)
+  }
+
+  @Test
+  fun `a chapter change persists immediately without waiting for the interval`() = runTest {
+    val store = FakeBooksStore(listOf(shelfBook()))
+    val catalog = OnlinePlaybackCatalog(service, store, chapterStore)
+
+    catalog.updatePosition(
+      bookId = bookId(),
+      chapterId = ChapterId(OnlineUri.build(SOURCE, BOOK_ID, "c2")),
+      positionMs = 1_000L,
+    )
+    awaitStoreChapter(store, "c2")
+
+    catalog.updatePosition(
+      bookId = bookId(),
+      chapterId = ChapterId(OnlineUri.build(SOURCE, BOOK_ID, "c3")),
+      positionMs = 2_000L,
+    )
+    awaitStoreChapter(store, "c3")
+  }
+
+  @Test
+  fun `localBook shows the persisted progress`() {
+    val book = catalog.localBook(
+      shelfBook().copy(currentChapterId = "c2", positionMs = 42_000L),
+    )
+    assertEquals(OnlineUri.build(SOURCE, BOOK_ID, "c2"), book.content.currentChapter.value)
+    assertEquals(42_000L, book.content.positionInChapter)
+  }
+
+  @Test
+  fun `refresh stores new chapters and keeps position and skip settings`() = runTest {
+    // the persisted chapter list lives in its own file since the split
+    chapterStore.put("A::$BOOK_ID", shelfBook().chapters)
+    val store = FakeBooksStore(
+      listOf(
+        shelfBook().copy(
+          currentChapterId = "c2",
+          positionMs = 42_000L,
+          skipIntroMs = 5_000L,
+          skipOutroMs = 3_000L,
+          chapters = emptyList(),
+        ),
+      ),
+    )
+    val catalog = OnlinePlaybackCatalog(service, store, chapterStore)
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns store.data.first().single()
+    coEvery { service.refreshChapters(SOURCE, BOOK_ID) } returns shelfBook().chapters +
+      OnlineChapter(id = "c4", title = "第4集", durationSeconds = 1700)
+
+    val result = catalog.refreshChapters(bookId())
+
+    assertEquals(OnlineChapterRefreshResult.Updated(added = 1, total = 4), result)
+    val stored = store.data.first().single()
+    // the shelf record stays metadata only: the chapter list lives in its own file
+    assertEquals(emptyList(), stored.chapters)
+    assertEquals("c2", stored.currentChapterId)
+    assertEquals(42_000L, stored.positionMs)
+    assertEquals(5_000L, stored.skipIntroMs)
+    assertEquals(3_000L, stored.skipOutroMs)
+    assertEquals(4, chapterStore.chapters("A::$BOOK_ID").size)
+  }
+
+  @Test
+  fun `refresh prefers measured durations over empty fresh ones`() = runTest {
+    chapterStore.put("A::$BOOK_ID", shelfBook().chapters)
+    val store = FakeBooksStore(listOf(shelfBook().copy(chapters = emptyList())))
+    val catalog = OnlinePlaybackCatalog(service, store, chapterStore)
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns store.data.first().single()
+    // the stream measured c3 while the source still reports nothing
+    catalog.recordMeasuredDuration(SOURCE, BOOK_ID, "c3", 120_000L)
+    coEvery { service.refreshChapters(SOURCE, BOOK_ID) } returns shelfBook().chapters
+
+    val result = catalog.refreshChapters(bookId())
+
+    assertEquals(OnlineChapterRefreshResult.UpToDate(total = 3), result)
+    assertEquals(120, chapterStore.chapters("A::$BOOK_ID").single { it.id == "c3" }.durationSeconds)
+  }
+
+  @Test
+  fun `a failed refresh keeps the stored chapters`() = runTest {
+    chapterStore.put("A::$BOOK_ID", shelfBook().chapters)
+    val store = FakeBooksStore(listOf(shelfBook().copy(chapters = emptyList())))
+    val catalog = OnlinePlaybackCatalog(service, store, chapterStore)
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns store.data.first().single()
+    coEvery { service.refreshChapters(SOURCE, BOOK_ID) } throws OnlineSourceException("boom")
+
+    val result = catalog.refreshChapters(bookId())
+
+    assertTrue(result is OnlineChapterRefreshResult.Failed)
+    assertEquals(3, chapterStore.chapters("A::$BOOK_ID").size)
+  }
+
+  @Test
+  fun `per book settings persist and surface in the synthesized book`() = runTest {
+    val store = FakeBooksStore(listOf(shelfBook()))
+    val catalog = OnlinePlaybackCatalog(service, store, chapterStore)
+
+    catalog.setSkipIntro(bookId(), 5_000L)
+    catalog.setSkipOutro(bookId(), 7_000L)
+    catalog.setSkipSilence(bookId(), true)
+    catalog.setPlaybackSpeed(bookId(), 1.5f)
+    catalog.setGain(bookId(), 3.5f)
+
+    val stored = store.data.first().single()
+    assertEquals(5_000L, stored.skipIntroMs)
+    assertEquals(7_000L, stored.skipOutroMs)
+    assertTrue(stored.skipSilence)
+    assertEquals(1.5f, stored.playbackSpeed)
+    assertEquals(3.5f, stored.gain)
+    coEvery { service.shelfBook("A::$BOOK_ID") } returns stored
+    val book = assertNotNull(catalog.book(bookId()))
+    assertEquals(5_000L, book.content.skipIntro)
+    assertEquals(7_000L, book.content.skipOutro)
+    assertTrue(book.content.skipSilence)
+    assertEquals(1.5f, book.content.playbackSpeed)
+    assertEquals(3.5f, book.content.gain)
+  }
+
+  /**
+   * Waits for the real IO [OnlinePlaybackCatalog] persistenceScope to land
+   * [chapterId]. Must use wall-clock time: runTest's withTimeout/delay are
+   * virtual and never let the real IO dispatcher finish.
+   */
+  private suspend fun awaitStoreChapter(
+    store: FakeBooksStore,
+    chapterId: String,
+  ) = withContext(Dispatchers.IO) {
+    val mark = TimeSource.Monotonic.markNow()
+    while (store.data.first().firstOrNull()?.currentChapterId != chapterId) {
+      check(mark.elapsedNow() < 5_000.milliseconds) {
+        "the position was never persisted to $chapterId"
+      }
+      Thread.sleep(10)
+    }
+  }
+
+  private companion object {
+    const val SOURCE = "A"
+    const val BOOK_ID = "42"
+    const val THIRD_PARTY_SOURCE = "A"
+    const val STREAM_URL = "https://cdn.example.com/c1.mp3"
+  }
+}
+
+/** In-memory books store; updateData runs the transform synchronously. */
+private class FakeBooksStore(initial: List<OnlineBook> = emptyList()) : DataStore<List<OnlineBook>> {
+  private val state = MutableStateFlow(initial)
+
+  override val data: Flow<List<OnlineBook>> = state
+
+  override suspend fun updateData(transform: suspend (List<OnlineBook>) -> List<OnlineBook>): List<OnlineBook> {
+    val next = transform(state.value)
+    state.value = next
+    return next
+  }
+}
+
+class OnlineStreamDurationProbeTest {
+
+  @Test
+  fun `ignores a false frame sync inside binary junk before the real audio`() {
+    // 有声书章节常带内嵌封面：id3v2 之后的二进制区域里可能出现看似合法的
+    // mpeg 帧头（此处声称 16kbps），真实音频是 24kbps 且成链。旧实现接受
+    // 第一个"像样"的帧头，把 10 分钟的章节算成 15 分钟。
+    val id3 = ByteArray(34).also { bytes ->
+      "ID3".forEachIndexed { i, c -> bytes[i] = c.code.toByte() }
+      bytes[9] = 24 // tag body 24 bytes
+    }
+    val falseSync = byteArrayOf(
+      0xFF.toByte(),
+      0xF2.toByte(),
+      0x20,
+      0xC0.toByte(), // mpeg2 l3 16kbps 22050Hz mono
+    )
+    val junk = ByteArray(46) // 无帧同步的二进制填充
+    val realFrame = ByteArray(78).also { bytes ->
+      // mpeg2 l3 24kbps, 78 bytes/frame
+      bytes[0] = 0xFF.toByte()
+      bytes[1] = 0xF2.toByte()
+      bytes[2] = 0x30
+      bytes[3] = 0xC0.toByte()
+      for (i in 4 until bytes.size) bytes[i] = 0x55
+    }
+    val frames = 400
+    val audio = ByteArray(78 * frames)
+    for (i in audio.indices) audio[i] = realFrame[i % 78]
+    val contentLength = (id3.size + falseSync.size + junk.size).toLong() + audio.size + 128
+    val head = id3 + falseSync + junk + audio
+
+    val estimated = OnlineStreamDurationProbe.estimateDurationMs(contentLength, head)
+
+    val audioBytes = contentLength - id3.size - 128
+    val expected = audioBytes * 8 / 24 // 真实的 24kbps 音频
+    assertEquals(expected, estimated)
+    assertTrue(estimated != audioBytes * 8 / 16) // 假同步的值必须落选
+  }
+
+  @Test
+  fun `estimates cbr duration from size and bitrate`() {
+    // mpeg1 layer III, 128 kbps, 44100 Hz: FF FB 90 00. The 128 byte id3v1
+    // trailer is excluded from the audio bytes.
+    val plain = byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x00, 0, 0, 0, 0)
+    assertEquals(62_492L, OnlineStreamDurationProbe.estimateDurationMs(1_000_000L, plain))
+  }
+
+  @Test
+  fun `uses xing frame count when present`() {
+    val head = mutableListOf<Byte>()
+    head += listOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x00)
+    head += "Xing".map { it.code.toByte() }
+    head += listOf(0x00, 0x00, 0x00, 0x03) // flags: frames + bytes
+    head += listOf(0x00, 0x00, 0x03, 0xE8.toByte()) // 1000 frames
+    head += listOf(0, 0, 0, 0)
+    val duration = OnlineStreamDurationProbe.estimateDurationMs(1_000_000L, head.toByteArray())
+    // 1000 frames * 1152 samples * 1000 / 44100 Hz
+    assertEquals(26_122L, duration)
+  }
+
+  @Test
+  fun `returns null for garbage`() {
+    val head = ByteArray(64) { it.toByte() }
+    head[0] = 0x12
+    assertNull(OnlineStreamDurationProbe.estimateDurationMs(1_000_000L, head))
+  }
+
+  @Test
+  fun `uses vbri frame count when present`() {
+    // mpeg1 stereo frame, then a VBRI tag at frame + 36 with 1000 frames at +14
+    val head = ByteArray(64)
+    head[0] = 0xFF.toByte()
+    head[1] = 0xFB.toByte()
+    head[2] = 0x90.toByte()
+    "VBRI".forEachIndexed { i, c -> head[36 + i] = c.code.toByte() }
+    head[50] = 0x00
+    head[51] = 0x00
+    head[52] = 0x03.toByte()
+    head[53] = 0xE8.toByte()
+    // 1000 frames * 1152 samples * 1000 / 44100 Hz
+    assertEquals(26_122L, OnlineStreamDurationProbe.estimateDurationMs(1_000_000L, head))
+  }
+
+  @Test
+  fun `exact xing offset wins over a misplaced tag`() {
+    // mpeg1 stereo frame: the real Xing header lives at frame + 36. A tag
+    // without a frame count earlier in the window must not shadow it.
+    val head = ByteArray(64)
+    head[0] = 0xFF.toByte()
+    head[1] = 0xFB.toByte()
+    head[2] = 0x90.toByte()
+    "Xing".forEachIndexed { i, c -> head[10 + i] = c.code.toByte() }
+    "Xing".forEachIndexed { i, c -> head[36 + i] = c.code.toByte() }
+    head[40] = 0x00
+    head[41] = 0x00
+    head[42] = 0x00
+    head[43] = 0x03
+    head[44] = 0x00
+    head[45] = 0x00
+    head[46] = 0x03.toByte()
+    head[47] = 0xE8.toByte()
+    assertEquals(26_122L, OnlineStreamDurationProbe.estimateDurationMs(1_000_000L, head))
+  }
+
+  @Test
+  fun `cbr estimate excludes the id3v2 tag`() {
+    // id3v2 with a 100 byte body, then a 128 kbps mpeg1 frame
+    val head = ByteArray(110 + 8)
+    head[0] = 'I'.code.toByte()
+    head[1] = 'D'.code.toByte()
+    head[2] = '3'.code.toByte()
+    head[9] = 100.toByte()
+    head[110] = 0xFF.toByte()
+    head[111] = 0xFB.toByte()
+    head[112] = 0x90.toByte()
+    // (1_000_000 - 110 - 128) * 8 / 128
+    assertEquals(62_485L, OnlineStreamDurationProbe.estimateDurationMs(1_000_000L, head))
+  }
+}

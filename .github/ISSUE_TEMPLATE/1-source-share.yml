@@ -1,0 +1,48 @@
+name: 接口源分享
+description: 分享你写的 .jdr 接口源——拖进来就行
+title: "[接口源] "
+labels: [ "source-share" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        欢迎分享接口源！只需记住一条边界：**只分享 `.jdr` 包或它的源码**，
+        不要上传音频文件，也不要贴你个人的服务器地址和密钥。
+
+        想自己写一个？看[接口源开发套件](https://github.com/cq10086123/Timbre/blob/main/samples/README.md)，
+        三步就能打出 `.jdr` 包。
+
+        ---
+
+        **免责声明**：本仓库所有接口源均由网友自行分享，全部来自互联网公开渠道，
+        与本仓库及维护者无关。维护者不存储、不审核、不制作任何接口源，也不对接口源的
+        合法性、安全性、可用性及其内容承担任何责任；接口源所指向的音频、内容、服务器
+        均归属原站点所有，使用时请自行辨别并遵守当地法律法规。如有侵权请联系删除。
+
+  - type: input
+    id: source-name
+    attributes:
+      label: 接口名称
+      placeholder: "随便填，中英文都行"
+    validations:
+      required: true
+
+  - type: textarea
+    id: package
+    attributes:
+      label: 接口源链接
+      description: |
+        把 `.jdr` 上传到任意可公开下载的地方，粘贴直链即可，例如：
+        自己仓库的 Release（推荐，可随时更新）、网盘、个人页面等。
+        Issue 附件不支持 .jdr 文件，请勿直接拖文件。
+      placeholder: "粘贴 .jdr 直链"
+    validations:
+      required: true
+
+  - type: textarea
+    id: about
+    attributes:
+      label: 简介（可选）
+      description: 能搜到什么内容、有没有使用限制、需要用户配置什么——没有就不用填
+    validations:
+      required: false

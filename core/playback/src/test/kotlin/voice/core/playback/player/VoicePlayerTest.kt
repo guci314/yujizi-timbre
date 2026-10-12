@@ -1,0 +1,566 @@
+package voice.core.playback.player
+
+import android.os.Looper
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.test.utils.FakeMediaSource
+import androidx.media3.test.utils.FakeTimeline
+import androidx.media3.test.utils.TestExoPlayerBuilder
+import androidx.media3.test.utils.robolectric.TestPlayerRunHelper
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.mockk.Runs
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
+import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
+import voice.core.common.DispatcherProvider
+import voice.core.data.Book
+import voice.core.data.BookId
+import voice.core.data.Chapter
+import voice.core.data.ChapterId
+import voice.core.data.ChapterMark
+import voice.core.data.MarkData
+import voice.core.data.repo.BookRepository
+import voice.core.logging.api.LogWriter
+import voice.core.logging.api.Logger
+import voice.core.online.OnlinePlaybackCatalog
+import voice.core.online.OnlinePreloadSettings
+import voice.core.playback.MemoryDataStore
+import voice.core.playback.misc.Decibel
+import voice.core.playback.session.MediaItemProvider
+import voice.core.playback.session.realChapterId
+import voice.core.playback.session.search.book
+import voice.core.playback.session.toMediaIdOrNull
+import voice.core.sleeptimer.SleepTimer
+import voice.core.sleeptimer.SleepTimerMode
+import voice.core.sleeptimer.SleepTimerState
+import java.time.Instant
+import java.util.concurrent.TimeUnit
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+import kotlin.uuid.Uuid
+
+@RunWith(AndroidJUnit4::class)
+class VoicePlayerTest {
+
+  init {
+    Logger.install(
+      object : LogWriter {
+        override fun log(
+          severity: Logger.Severity,
+          message: String,
+          throwable: Throwable?,
+        ) {
+          println("$severity: $message")
+          throwable?.printStackTrace()
+        }
+      },
+    )
+  }
+
+  private val seekTimeStore = MemoryDataStore(2)
+  private val autoRewindAmountStore = MemoryDataStore(2)
+
+  private val internalPlayer = TestExoPlayerBuilder(ApplicationProvider.getApplicationContext())
+    .setMediaSourceFactory(
+      mockk {
+        every { createMediaSource(any()) } answers {
+          val mediaItem = arg<MediaItem>(0)
+          val mediaId = mediaItem.mediaId
+          val chapter = currentBook.chapters.single {
+            it.id == mediaId.toMediaIdOrNull()!!.realChapterId
+          }
+          FakeMediaSource(
+            FakeTimeline(
+              FakeTimeline.TimelineWindowDefinition.Builder()
+                .setPeriodCount(1)
+                .setSeekable(true)
+                .setDurationUs(TimeUnit.MILLISECONDS.toMicros(chapter.duration))
+                .setMediaItem(mediaItem)
+                .build(),
+            ),
+          )
+        }
+      },
+    )
+    .build()
+
+  private val scope = TestScope()
+  private val mediaItemProvider = MediaItemProvider(mockk(), mockk(), mockk(), mockk(), mockk(), mockk())
+  private val bookId = BookId(Uuid.random().toString())
+  private lateinit var currentBook: Book
+  private val sleepTimer = FakeSleepTimer()
+  private val repo = mockk<BookRepository> {
+    coEvery { get(bookId) } answers { currentBook }
+    coEvery { updateBook(any(), any()) } just Runs
+  }
+  private val onlinePlaybackCatalog = mockk<OnlinePlaybackCatalog> {
+    coEvery { book(any()) } returns null
+    every { isOnlineBookId(any()) } returns false
+    coEvery { onlineCover(any()) } returns null
+  }
+  private val player = VoicePlayer(
+    player = internalPlayer,
+    repo = repo,
+    currentBookStoreId = mockk {
+      every { data } returns flowOf(bookId)
+    },
+    seekTimeStore = seekTimeStore,
+    btSkipToChapterStore = mockk {
+      every { data } returns flowOf(false)
+    },
+    autoRewindAmountStore = autoRewindAmountStore,
+    scope = scope,
+    mediaItemProvider = mediaItemProvider,
+    onlinePlaybackCatalog = onlinePlaybackCatalog,
+    onlinePreloadSettingsStore = MemoryDataStore(OnlinePreloadSettings.Default),
+    onlineStreamingClient = OkHttpClient(),
+    imageFileProvider = mockk(),
+    volumeGain = mockk(relaxed = true),
+    sleepTimer = sleepTimer,
+    analytics = mockk(relaxed = true),
+    dispatcherProvider = DispatcherProvider(io = UnconfinedTestDispatcher(scope.testScheduler)),
+  )
+
+  @Test
+  fun `seekToNext does not clip`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 19_999, name = null),
+          ChapterMark(startMs = 20_000, endMs = 30_000, name = null),
+        ),
+        chapter(
+          ChapterMark(startMs = 0, endMs = 19_999, name = null),
+          ChapterMark(startMs = 20_000, endMs = 30_000, name = null),
+        ),
+      ),
+    )
+
+    seekTimeStore.updateData { 7 }
+
+    player.prepare()
+    awaitReady()
+    player.shouldHavePosition(0, 0)
+
+    player.seekToNext()
+    player.shouldHavePosition(0, 7_000)
+
+    player.seekToNext()
+    player.shouldHavePosition(0, 14_000)
+
+    player.seekToNext()
+    player.shouldHavePosition(0, 21_000)
+
+    player.seekToNext()
+    player.shouldHavePosition(0, 28_000)
+
+    player.seekToNext()
+    player.shouldHavePosition(1, 5_000)
+
+    player.seekToNext()
+    player.shouldHavePosition(1, 12_000)
+  }
+
+  @Test
+  fun `seekToPrevious does not clip`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 4_999, name = null),
+          ChapterMark(startMs = 5_000, endMs = 12_000, name = null),
+        ),
+        chapter(
+          ChapterMark(startMs = 0, endMs = 4_999, name = null),
+          ChapterMark(startMs = 5_000, endMs = 12_001, name = null),
+        ),
+      ),
+    )
+
+    seekTimeStore.updateData { 5 }
+
+    player.seekTo(1, 12_000)
+    player.prepare()
+    awaitReady()
+
+    player.shouldHavePosition(1, 11_999)
+
+    player.seekToPrevious()
+    player.shouldHavePosition(1, 6_999)
+
+    player.seekToPrevious()
+    player.shouldHavePosition(1, 1_999)
+
+    player.seekToPrevious()
+    player.shouldHavePosition(0, 1_998)
+
+    player.seekToPrevious()
+    player.shouldHavePosition(0, 0)
+
+    player.seekToPrevious()
+    player.shouldHavePosition(0, 0)
+  }
+
+  @Test
+  fun `forceSeekToNext jumps to chapters`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+      ),
+    )
+
+    player.prepare()
+    awaitReady()
+    player.shouldHavePosition(0, 0)
+
+    player.forceSeekToNext()
+    player.shouldHavePosition(1, 0)
+
+    player.forceSeekToNext()
+    player.shouldHavePosition(2, 0)
+
+    player.forceSeekToNext()
+    player.shouldHavePosition(3, 0)
+
+    player.forceSeekToNext()
+    player.shouldHavePosition(3, 0)
+  }
+
+  @Test
+  fun `forceSeekToNext at the last chapter ends it while playing`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+      ),
+    )
+
+    player.seekTo(1, 3_000)
+    player.prepare()
+    awaitReady()
+    player.shouldHavePosition(1, 3_000)
+
+    player.play()
+    player.forceSeekToNext()
+
+    // there is no next chapter to jump to. The seek lands inside the last
+    // chapter mark so it doesn't pause, the chapter ends and the playlist
+    // synchronizer resumes into the next imported chapter.
+    scope.advanceUntilIdle()
+    assertTrue(player.playWhenReady)
+    assertEquals(expected = 1, actual = player.currentMediaItemIndex)
+    assertTrue(player.currentPosition >= 19_999)
+  }
+
+  @Test
+  fun `forceSeekToPrevious jumps to chapters`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+      ),
+    )
+
+    player.seekTo(3, 6_000)
+    player.prepare()
+    awaitReady()
+    player.shouldHavePosition(3, 6_000)
+
+    // the button always changes the chapter, also when the current one just
+    // started; restarting the current episode made it look broken
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(2, 0)
+
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(1, 0)
+
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(0, 0)
+
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(0, 0)
+  }
+
+  @Test
+  fun `forceSeekToPrevious jumps to the previous chapter right after a transition`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+      ),
+    )
+
+    player.seekTo(2, 1_000)
+    player.prepare()
+    awaitReady()
+    player.shouldHavePosition(2, 1_000)
+
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(1, 0)
+
+    player.seekTo(1, 1_000)
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(0, 0)
+  }
+
+  @Test
+  fun `setBook resumes inside matching chapter mark`() = scope.runTest {
+    val chapter = chapter(
+      ChapterMark(startMs = 0, endMs = 11_999, name = null),
+      ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+    )
+    setMediaItems(
+      chapters = listOf(chapter),
+      currentChapter = chapter,
+      positionInChapter = 15_000,
+    )
+
+    player.prepare()
+    awaitReady()
+
+    player.shouldHavePosition(1, 3_000)
+  }
+
+  @Test
+  fun `end of chapter sleep timer pauses at start of next chapter mark`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 1_000, name = null),
+          ChapterMark(startMs = 1_000, endMs = 2_000, name = null),
+        ),
+      ),
+    )
+
+    player.prepare()
+    awaitReady()
+    sleepTimer.enable(SleepTimerMode.EndOfChapter)
+
+    TestPlayerRunHelper.play(internalPlayer).untilPlayWhenReadyIs(false)
+
+    player.shouldHavePosition(1, 0)
+    assertFalse(player.playWhenReady)
+    assertEquals(expected = SleepTimerState.Disabled, actual = sleepTimer.state.value)
+  }
+
+  @Test
+  fun `end of chapter sleep timer pauses at start of normal file chapter`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(ChapterMark(startMs = 0, endMs = 1_000, name = null)),
+        chapter(ChapterMark(startMs = 0, endMs = 1_000, name = null)),
+      ),
+    )
+
+    player.prepare()
+    awaitReady()
+    sleepTimer.enable(SleepTimerMode.EndOfChapter)
+
+    TestPlayerRunHelper.play(internalPlayer).untilPlayWhenReadyIs(false)
+
+    player.shouldHavePosition(1, 0)
+    assertFalse(player.playWhenReady)
+    assertEquals(expected = SleepTimerState.Disabled, actual = sleepTimer.state.value)
+  }
+
+  @Test
+  fun `auto rewind clamps to current chapter start`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+      ),
+    )
+
+    autoRewindAmountStore.updateData { 5 }
+
+    player.seekTo(1, 3_000)
+    player.prepare()
+    awaitReady()
+    player.shouldHavePosition(1, 3_000)
+
+    player.pause()
+
+    player.shouldHavePosition(1, 0)
+  }
+
+  private fun TestScope.setMediaItems(
+    chapters: List<Chapter>,
+    currentChapter: Chapter = chapters.first(),
+    positionInChapter: Long = 0,
+  ) {
+    currentBook = book(chapters, bookId).update {
+      it.copy(
+        currentChapter = currentChapter.id,
+        positionInChapter = positionInChapter,
+      )
+    }
+    player.setMediaItem(mediaItemProvider.mediaItem(currentBook))
+    // setBook now prepares a leading prefix on the IO dispatcher then calls
+    // setMediaItems on the exo player. Drain the test scheduler so the
+    // playlist is installed before awaitReady / seeks — otherwise
+    // runUntilPlaybackState waits forever on an empty player.
+    advanceUntilIdle()
+  }
+
+  @Test
+  fun `forceSeekToPrevious restarts the first chapter when there is no previous one`() = scope.runTest {
+    setMediaItems(
+      listOf(
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+        chapter(
+          ChapterMark(startMs = 0, endMs = 11_999, name = null),
+          ChapterMark(startMs = 12_000, endMs = 20_000, name = null),
+        ),
+      ),
+    )
+
+    player.seekTo(0, 3_000)
+    player.prepare()
+    awaitReady()
+    player.shouldHavePosition(0, 3_000)
+
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(0, 0)
+
+    player.forceSeekToPrevious()
+    player.shouldHavePosition(0, 0)
+  }
+
+  private fun chapter(vararg marks: ChapterMark): Chapter {
+    return Chapter(
+      id = ChapterId(Uuid.random().toString()),
+      name = "chapter",
+      duration = marks.maxOf { it.endMs },
+      fileLastModified = Instant.EPOCH,
+      markData = marks.map {
+        MarkData(it.startMs, it.name ?: "mark ")
+      },
+      fileSize = 0,
+    )
+  }
+
+  /**
+   * Bounded replacement for TestPlayerRunHelper.runUntilPlaybackState: that
+   * helper waits forever, and setBook prepares the leading playback prefix on a
+   * real IO thread, so a late STATE_READY would pin the whole Gradle unit job
+   * instead of failing this single test.
+   */
+  private fun awaitReady() {
+    val mainLooper = Looper.getMainLooper()
+    val mark = TimeSource.Monotonic.markNow()
+    while (internalPlayer.playbackState != Player.STATE_READY) {
+      shadowOf(mainLooper).idle()
+      if (internalPlayer.playbackState == Player.STATE_READY) return
+      check(mark.elapsedNow() < READY_TIMEOUT) {
+        "the player never reached STATE_READY (state=${internalPlayer.playbackState})"
+      }
+      Thread.sleep(5)
+    }
+  }
+
+  @IgnorableReturnValue
+  private fun Player.shouldHavePosition(
+    currentMediaItemIndex: Int,
+    currentPosition: Long,
+  ): Player {
+    scope.advanceUntilIdle()
+    assertEquals(expected = currentMediaItemIndex, actual = this.currentMediaItemIndex)
+    assertEquals(expected = currentPosition, actual = this.currentPosition)
+    return this
+  }
+
+  @Test
+  fun `per book settings of an online book persist to the online shelf`() = scope.runTest {
+    every { onlinePlaybackCatalog.isOnlineBookId(bookId) } returns true
+    coEvery { onlinePlaybackCatalog.setSkipSilence(any(), any()) } just Runs
+    coEvery { onlinePlaybackCatalog.setPlaybackSpeed(any(), any()) } just Runs
+    coEvery { onlinePlaybackCatalog.setGain(any(), any()) } just Runs
+
+    player.setSkipSilenceEnabled(true)
+    player.setPlaybackSpeed(1.5f)
+    player.setGain(Decibel(3f))
+    scope.advanceUntilIdle()
+
+    coVerify {
+      onlinePlaybackCatalog.setSkipSilence(bookId, true)
+      onlinePlaybackCatalog.setPlaybackSpeed(bookId, 1.5f)
+      onlinePlaybackCatalog.setGain(bookId, 3f)
+    }
+    coVerify(exactly = 0) { repo.updateBook(any(), any()) }
+  }
+
+  @Test
+  fun `per book settings of a local book persist to the room content`() = scope.runTest {
+    player.setSkipSilenceEnabled(true)
+    player.setPlaybackSpeed(1.5f)
+    player.setGain(Decibel(3f))
+    scope.advanceUntilIdle()
+
+    coVerify(exactly = 3) { repo.updateBook(bookId, any()) }
+  }
+
+  private class FakeSleepTimer : SleepTimer {
+    override val state: StateFlow<SleepTimerState>
+      get() = stateFlow
+
+    private val stateFlow = MutableStateFlow<SleepTimerState>(SleepTimerState.Disabled)
+
+    override fun enable(mode: SleepTimerMode) {
+      stateFlow.value = when (mode) {
+        is SleepTimerMode.TimedWithDuration -> SleepTimerState.Enabled.WithDuration(mode.duration)
+        SleepTimerMode.TimedWithDefault -> error("TimedWithDefault is not used in these tests")
+        SleepTimerMode.EndOfChapter -> SleepTimerState.Enabled.WithEndOfChapter
+      }
+    }
+
+    override fun disable() {
+      stateFlow.value = SleepTimerState.Disabled
+    }
+  }
+}
+
+/** Upper bound for STATE_READY waits; a stuck player must fail fast. */
+private val READY_TIMEOUT = 20.seconds

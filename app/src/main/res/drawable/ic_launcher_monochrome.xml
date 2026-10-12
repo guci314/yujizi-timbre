@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="108dp"
+  android:height="108dp"
+  android:viewportWidth="108"
+  android:viewportHeight="108">
+  <!-- Timbre mark: five equalizer bars, the spectral fingerprint of sound -->
+  <path
+    android:pathData="M28 47.75v12.5M41 40.75v26.5M54 33.75v40.5M67 40.75v26.5M80 47.75v12.5"
+    android:strokeWidth="7.5"
+    android:strokeColor="#fff"
+    android:strokeLineCap="round" />
+</vector>

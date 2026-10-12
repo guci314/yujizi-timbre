@@ -1,0 +1,59 @@
+name: 使用疑问
+description: 不知道怎么操作，或行为不符合预期但不确定是不是 Bug
+title: "[疑问] "
+labels: [ "question" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提问前先看一眼这两处，多半已经有答案：
+        - [常见问题 FAQ](https://github.com/cq10086123/Timbre/blob/main/docs/faq.md)
+        - [README 使用小贴士](https://github.com/cq10086123/Timbre/blob/main/README.md)
+
+        如果确实是程序出错，请改用「Bug 报告」模板，那样能带上更多排查信息。
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 你的问题
+      description: 想做什么、卡在哪一步、界面提示了什么
+      placeholder: |
+        例如：添加 WebDAV 服务器后能看到文件夹，但点进书籍提示「无法连接在线书源」，
+        地址在电脑浏览器里能正常打开。
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已经试过什么
+      description: 排查过的步骤和结果，能帮我快速定位
+      placeholder: |
+        例如：换过端口、改过路径、重装过 App，都不行。
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Timbre 版本
+      description: 在「设置 → 软件版本」里查看
+      placeholder: "3.2.523"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统
+      placeholder: "小米 14 / Android 14"
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 截图
+      description: 直接把截图拖进输入框，有界面提示的话会很有帮助
+    validations:
+      required: false
