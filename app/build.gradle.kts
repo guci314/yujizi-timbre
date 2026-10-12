@@ -178,6 +178,9 @@ dependencies {
   implementation(projects.core.webdav)
   implementation(projects.core.online)
   implementation(projects.core.extension)
+  // 玉机子：内置接口源要在启动时装包，ExtensionManager.install() 的返回类型
+  // ExtensionManifest 定义在 extension-engine 里，所以要显式依赖它。
+  implementation(projects.core.extensionEngine)
   implementation(projects.features.extensions)
   implementation(projects.features.webdav)
   implementation(projects.features.onboarding)

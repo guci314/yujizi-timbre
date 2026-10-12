@@ -165,7 +165,10 @@ public interface StoreModule {
   @SingleIn(AppScope::class)
   @OnboardingCompletedStore
   private fun onboardingCompleted(factory: VoiceDataStoreFactory): DataStore<Boolean> {
-    return factory.boolean("onboardingCompleted", defaultValue = false)
+    // 玉机子：默认值改成 true —— 本 App 只服务玉机子，内容由
+    // YujiziSetupOnAppStart 在启动时自动铺好，不该让用户走「添加本地文件夹 /
+    // 导入书源」的引导。要加自己的本地书时，书架上仍可进入「添加内容」。
+    return factory.boolean("onboardingCompleted", defaultValue = true)
   }
 
   @Provides
