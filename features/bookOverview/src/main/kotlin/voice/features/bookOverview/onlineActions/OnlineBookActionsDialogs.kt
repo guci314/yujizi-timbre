@@ -1,5 +1,7 @@
 package voice.features.bookOverview.onlineActions
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -27,9 +29,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -395,10 +402,59 @@ private fun CacheProgress(
 }
 
 /**
- * 「清除缓存」菜单项的确认框：清缓存会删掉已下载的音频文件且不可撤销，
- * 所以先把「要删多少」摆出来让用户确认；这本书没缓存过就只说一句，
- * 只给一个「确定」。
+ * 「播放诊断」的结果框：报告是一段等宽文本，可复制（真机上的静默失败
+ * 只能靠它把原因带出来）。
  */
+@Composable
+internal fun OnlineDiagnosticsDialog(
+  viewState: OnlineDiagnosticsUiState,
+  onDismiss: () -> Unit,
+) {
+  val context = LocalContext.current
+  val copiedLabel = stringResource(StringsR.string.online_diagnose_copied)
+  val copyLabel = stringResource(StringsR.string.online_diagnose_copy)
+  var copied by remember { mutableStateOf(false) }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(StringsR.string.online_diagnose)) },
+    text = {
+      if (viewState.loading) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+          CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+          Text(stringResource(StringsR.string.online_diagnose_running))
+        }
+      } else {
+        Text(
+          modifier = Modifier.verticalScroll(rememberScrollState()),
+          text = viewState.report,
+          style = MaterialTheme.typography.bodySmall,
+        )
+      }
+    },
+    confirmButton = {
+      if (!viewState.loading) {
+        TextButton(
+          onClick = {
+            val clipboard = context.getSystemService(ClipboardManager::class.java)
+            clipboard?.setPrimaryClip(ClipData.newPlainText("diagnostics", viewState.report))
+            copied = true
+          },
+        ) {
+          Text(if (copied) copiedLabel else copyLabel)
+        }
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) {
+        Text(stringResource(StringsR.string.online_diagnose_close))
+      }
+    },
+  )
+}
 @Composable
 internal fun OnlineClearCacheDialog(
   viewState: OnlineClearCacheDialogState,

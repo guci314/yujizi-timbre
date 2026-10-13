@@ -499,6 +499,23 @@ class OnlineStreamDurationProbeTest {
   }
 
   @Test
+  fun `reads the exact duration of an m4a head`() {
+    // 真实文件的头 256 字节（玉机子讲阴符经第一讲）：ftyp + moov + mvhd，
+    // mvhd 里 timescale=1000、duration=6184907 → 6184.9 秒（1:43:04）。
+    // 上游只认 mp3，这段以前一律返回 null，于是每章都退到 30 分钟的占位时长。
+    val head = java.util.Base64.getDecoder().decode(MP4_HEAD_BASE64)
+    assertEquals(6_184_907L, OnlineStreamDurationProbe.estimateDurationMs(19_142_140L, head))
+  }
+
+  @Test
+  fun `returns null for an mp4 whose moov is not in the head`() {
+    // 只有 ftyp、没有 moov（moov 在文件尾部的那种布局）：不猜，交给占位时长
+    val head = java.util.Base64.getDecoder().decode(MP4_HEAD_BASE64)
+    val truncated = head.copyOf(40)
+    assertNull(OnlineStreamDurationProbe.estimateDurationMs(19_142_140L, truncated))
+  }
+
+  @Test
   fun `uses xing frame count when present`() {
     val head = mutableListOf<Byte>()
     head += listOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x00)
@@ -570,3 +587,14 @@ class OnlineStreamDurationProbeTest {
     assertEquals(62_485L, OnlineStreamDurationProbe.estimateDurationMs(1_000_000L, head))
   }
 }
+
+/**
+ * 真实 m4a 文件的头 256 字节（`玉机子讲阴符经/28416276.m4a`，来自网站仓库）。
+ * 里面是 ftyp + moov + mvhd，用于回归「m4a 时长探测」——上游只实现了 mp3。
+ */
+private const val MP4_HEAD_BASE64: String =
+  "AAAAIGZ0eXBNNEEgAAAAAWlzb21pc28yTTRBIG1wNDIACPPvbW9vdgAAAGxtdmhkAAAAAAAA" +
+    "AAAAAAAAAAAD6ABeX8sAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAA" +
+    "AAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAI8xl0cmFrAAAAXHRraGQA" +
+    "AAADAAAAANSYss4AAAABAAAAAABeX8sAAAAAAAAAAAAAAAEBAAAAAAEAAAAAAAAAAAAAAAAA" +
+    "AAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAkZWR0cw=="

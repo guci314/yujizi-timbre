@@ -284,6 +284,9 @@ public class OnlineStreamingDataSource internal constructor(
       }
       stream.reset()
       val durationMs = OnlineStreamDurationProbe.estimateDurationMs(contentLength, head.copyOf(read))
+      // 时长探测是「显示时长对不对」的唯一依据，失败时值得留一行：真机上
+      // 没有日志可看，出问题时只能靠这一行判断是「没读到够多的头」还是「格式不认」
+      Logger.i("Chapter duration probe $ref: head=$read bytes, declared=$contentLength, measured=$durationMs")
       if (durationMs != null && durationMs > 0) {
         onDurationResolved(ref, durationMs)
       }

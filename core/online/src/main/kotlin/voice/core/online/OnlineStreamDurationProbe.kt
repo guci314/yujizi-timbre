@@ -19,6 +19,16 @@ public object OnlineStreamDurationProbe {
   private const val ID3V1_BYTES = 128L
   private const val VBRI_FRAMES_OFFSET = 14
 
+  /** 每个 box 的头部：4 字节长度 + 4 字节类型。 */
+  private const val ATOM_HEADER_BYTES = 8
+
+  /** ftyp + moov 头部 + mvhd 至少要这么多字节才值得试。 */
+  private const val MIN_MP4_HEAD = 64
+
+  /** 顶层 box 与 moov 子 box 的遍历上限，防止坏文件把循环拖住。 */
+  private const val MAX_TOP_LEVEL_ATOMS = 32
+  private const val MAX_MOOV_CHILDREN = 32
+
   /**
    * Estimates the duration in ms.
    *
@@ -31,6 +41,8 @@ public object OnlineStreamDurationProbe {
     head: ByteArray,
   ): Long? {
     if (contentLength <= 0L || head.size < 8) return null
+    // MP4/M4A 先试：它给的是精确时长，不需要按码率估
+    mp4DurationMs(head)?.let { return it }
     val id3Size = id3Length(head) ?: return null
     val frame = findFrameHeader(head, id3Size) ?: return null
     if (frame.bitrateKbps <= 0 || frame.sampleRate <= 0) return null
@@ -47,6 +59,110 @@ public object OnlineStreamDurationProbe {
     // id3v1 trailer are not audio and would inflate the estimate
     val audioBytes = (contentLength - id3Size - ID3V1_BYTES).coerceAtLeast(0L)
     return audioBytes * 8L / frame.bitrateKbps
+  }
+
+  /**
+   * MP4/M4A 的时长：读 `moov > mvhd` 的 timescale 与 duration，是**精确值**。
+   *
+   * 上游只实现了 mp3 的估算（ID3 + 帧头 + 码率），对 `.m4a`/`.mp4` 一律返回 null，
+   * 于是这类章节全都退到 30 分钟的占位时长 —— 玉机子的音频正是 m4a，症状就是
+   * 「显示时长不对」（真实 1:43 的章节显示 30:00）。
+   *
+   * 只处理 `moov` 位于文件前部（faststart）的情况；`moov` 在尾部时返回 null，
+   * 调用方退回占位值，行为与上游一致。
+   */
+  private fun mp4DurationMs(head: ByteArray): Long? {
+    // 'ftyp' 是第一个 box（起点 0，类型在 4）—— 注意别把「类型偏移」当「box 起点」
+    if (head.size < MIN_MP4_HEAD || !atomTypeIs(head, 0, "ftyp")) return null
+    var pos = 0
+    var seen = 0
+    while (pos + ATOM_HEADER_BYTES <= head.size && seen++ < MAX_TOP_LEVEL_ATOMS) {
+      val size = atomSize(head, pos) ?: return null
+      if (atomTypeIs(head, pos, "moov")) {
+        return moovDurationMs(head, pos + ATOM_HEADER_BYTES, pos + size)
+      }
+      if (size <= 0L) return null
+      pos += size.toInt()
+    }
+    return null
+  }
+
+  /** `moov` 的子 box 里找 `mvhd`。mvhd 是第一个子 box，通常几十字节。 */
+  private fun moovDurationMs(
+    head: ByteArray,
+    start: Int,
+    declaredEnd: Long,
+  ): Long? {
+    // mvhd 在 moov 开头，不必等整个 moov 到齐（真实文件的 moov 有几百 KB）
+    val end = minOf(declaredEnd, head.size.toLong()).toInt()
+    var pos = start
+    var seen = 0
+    while (pos + ATOM_HEADER_BYTES <= end && seen++ < MAX_MOOV_CHILDREN) {
+      val size = atomSize(head, pos) ?: return null
+      if (atomTypeIs(head, pos, "mvhd")) {
+        return mvhdDurationMs(head, pos + ATOM_HEADER_BYTES)
+      }
+      if (size <= 0L) return null
+      pos += size.toInt()
+    }
+    return null
+  }
+
+  /** mvhd 布局：1 字节 version + 3 字节 flags，然后按 version 取 timescale/duration。 */
+  private fun mvhdDurationMs(
+    head: ByteArray,
+    start: Int,
+  ): Long? {
+    return if (head[start].toInt() and 0xFF == 1) {
+      // version 1：creation(8) modification(8) timescale(4) duration(8)
+      val timescale = readU32(head, start + 4 + 16)?.takeIf { it > 0L } ?: return null
+      val duration = readU64(head, start + 4 + 20) ?: return null
+      duration * 1_000L / timescale
+    } else {
+      // version 0：creation(4) modification(4) timescale(4) duration(4)
+      val timescale = readU32(head, start + 4 + 8)?.takeIf { it > 0L } ?: return null
+      val duration = readU32(head, start + 4 + 12) ?: return null
+      duration * 1_000L / timescale
+    }
+  }
+
+  /** box 长度：0 = 到文件尾，1 = 后面 8 字节是 64 位长度。 */
+  private fun atomSize(
+    head: ByteArray,
+    pos: Int,
+  ): Long? {
+    val size32 = readU32(head, pos) ?: return null
+    return when (size32) {
+      0L -> head.size - pos.toLong()
+      1L -> readU64(head, pos + ATOM_HEADER_BYTES)
+      else -> size32
+    }
+  }
+
+  private fun atomType(
+    head: ByteArray,
+    pos: Int,
+  ): String? {
+    if (pos + ATOM_HEADER_BYTES > head.size) return null
+    return String(head, pos + 4, 4, Charsets.US_ASCII)
+  }
+
+  private fun atomTypeIs(
+    head: ByteArray,
+    pos: Int,
+    expected: String,
+  ): Boolean = atomType(head, pos) == expected
+
+  private fun readU64(
+    head: ByteArray,
+    offset: Int,
+  ): Long? {
+    if (offset < 0 || offset + 8 > head.size) return null
+    var value = 0L
+    for (b in 0 until 8) {
+      value = (value shl 8) or (head[offset + b].toLong() and 0xFF)
+    }
+    return value
   }
 
   /** Length of the leading ID3v2 tag in bytes, 0 when absent. */

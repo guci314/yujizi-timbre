@@ -13,6 +13,7 @@ import voice.core.online.OnlineBookCacheManager
 import voice.core.online.OnlineCacheState
 import voice.core.online.OnlineCachedInfo
 import voice.core.online.OnlineChapterRefreshResult
+import voice.core.online.OnlineDiagnostics
 import voice.core.online.OnlinePlaybackCatalog
 import voice.features.bookOverview.bottomSheet.BottomSheetItem
 import voice.features.bookOverview.bottomSheet.BottomSheetItemViewModel
@@ -52,11 +53,22 @@ internal data class OnlineClearCacheDialogState(
   val loading: Boolean = true,
 )
 
+/**
+ * 「播放诊断」的状态：把源解析 / 取流 / 缓存校验每一步的耗时与异常摆出来。
+ * 真机上的静默失败（不报错但不动）只能靠这个定位。
+ */
+internal data class OnlineDiagnosticsUiState(
+  val bookId: BookId,
+  val loading: Boolean = true,
+  val report: String = "",
+)
+
 @SingleIn(BookOverviewScope::class)
 @ContributesIntoSet(BookOverviewScope::class)
 class OnlineBookActionsViewModel(
   private val catalog: OnlinePlaybackCatalog,
   private val cacheManager: OnlineBookCacheManager,
+  private val diagnostics: OnlineDiagnostics,
   dispatcherProvider: DispatcherProvider,
 ) : BottomSheetItemViewModel {
 
@@ -71,12 +83,16 @@ class OnlineBookActionsViewModel(
   private val _clearCacheDialog = mutableStateOf<OnlineClearCacheDialogState?>(null)
   internal val clearCacheDialog: State<OnlineClearCacheDialogState?> get() = _clearCacheDialog
 
+  private val _diagnosticsState = mutableStateOf<OnlineDiagnosticsUiState?>(null)
+  internal val diagnosticsState: State<OnlineDiagnosticsUiState?> get() = _diagnosticsState
+
   override suspend fun items(bookId: BookId): List<BottomSheetItem> {
     if (!catalog.isOnlineBookId(bookId)) return emptyList()
     return listOf(
       BottomSheetItem.OnlineRefreshChapters,
       BottomSheetItem.OnlineCacheBook,
       BottomSheetItem.OnlineClearCache,
+      BottomSheetItem.OnlineDiagnose,
     )
   }
 
@@ -88,6 +104,7 @@ class OnlineBookActionsViewModel(
       BottomSheetItem.OnlineRefreshChapters -> refreshChapters(bookId)
       BottomSheetItem.OnlineCacheBook -> openCacheDialog(bookId)
       BottomSheetItem.OnlineClearCache -> openClearCacheDialog(bookId)
+      BottomSheetItem.OnlineDiagnose -> runDiagnostics(bookId)
       else -> return
     }
   }
@@ -224,6 +241,22 @@ class OnlineBookActionsViewModel(
 
   internal fun onDismissClearCache() {
     _clearCacheDialog.value = null
+  }
+
+  private fun runDiagnostics(bookId: BookId) {
+    _diagnosticsState.value = OnlineDiagnosticsUiState(bookId = bookId, loading = true)
+    scope.launch {
+      val report = runCatching { diagnostics.report(bookId) }
+        .getOrElse { "诊断本身出错：${it::class.java.simpleName}: ${it.message}" }
+      val current = _diagnosticsState.value
+      if (current != null && current.bookId == bookId) {
+        _diagnosticsState.value = current.copy(loading = false, report = report)
+      }
+    }
+  }
+
+  internal fun onDismissDiagnostics() {
+    _diagnosticsState.value = null
   }
 }
 
