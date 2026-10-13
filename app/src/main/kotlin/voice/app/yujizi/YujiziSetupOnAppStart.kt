@@ -54,18 +54,18 @@ public class YujiziSetupOnAppStart(
   }
 
   private suspend fun installBundledSource(application: Application) {
-    val installed = extensionManager.installed().any { it.manifest.id == BUNDLED_MANIFEST_ID }
+    val installed = extensionManager.installed().any { it.manifest.id == YujiziSource.MANIFEST_ID }
     if (installed) {
       return
     }
-    val bytes = application.assets.open(BUNDLED_ASSET).use { it.readBytes() }
+    val bytes = application.assets.open(YujiziSource.JDR_ASSET).use { it.readBytes() }
     val manifest = extensionManager.install(bytes)
     Logger.i("玉机子：已安装内置接口源 ${manifest.name} v${manifest.version}")
   }
 
   private suspend fun seedShelf() {
     val onShelf = onlineSourceService.shelf().first().map { it.key }.toHashSet()
-    val books = onlineSourceService.search(SOURCE_NAME, "")
+    val books = onlineSourceService.search(YujiziSource.SOURCE_NAME, "")
     var added = 0
     for (book in books) {
       val key = "${book.source}::${book.bookId}"
@@ -90,12 +90,4 @@ public class YujiziSetupOnAppStart(
     }
   }
 
-  private companion object {
-    /** 打进 assets 的接口源包名，与 scripts/make_yujizi_jdr.py 生成的保持一致。 */
-    const val BUNDLED_ASSET = "yujizi.jdr"
-    const val BUNDLED_MANIFEST_ID = "org.yujizi.source"
-
-    /** 扩展源的寻址前缀见 ExtensionEngineProvider.SOURCE_PREFIX。 */
-    const val SOURCE_NAME = "jdr:yujizi"
-  }
 }

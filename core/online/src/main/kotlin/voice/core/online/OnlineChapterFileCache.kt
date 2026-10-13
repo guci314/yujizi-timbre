@@ -8,8 +8,12 @@ import java.security.MessageDigest
  * Local files of manually cached online chapters, so cached episodes keep
  * playing offline. Layout:
  * `online_chapters/<source>/<bookId>/<chapterId>.audio`, downloads land in a
- * `.tmp` sibling first and are renamed only when complete - a file with the
- * final name is therefore always a whole chapter.
+ * `.tmp` sibling first and are renamed only when complete.
+ *
+ * ⚠️ 「落盘即完整」这个假设**不能只靠 .tmp 改名来保证**：连接中途被掐断时
+ * `copyTo` 会静默返回半截内容，改名照样发生。所以下载路径要按
+ * `Content-Length` / sha256 校验（见 [OnlineChapterIntegrity]），
+ * 读取侧（[isCached]、[OnlineStreamingDataSource]）也要按同一依据判定完整性。
  *
  * This is deliberately separate from every automatic cache: resolved stream
  * urls live in memory with a short ttl, and the webdav prefetch only knows
@@ -19,17 +23,31 @@ import java.security.MessageDigest
  * Provided by [OnlineSourceGraph] with the app files dir; tests construct it
  * with a temp dir directly.
  */
-public class OnlineChapterFileCache internal constructor(private val root: File) {
+public class OnlineChapterFileCache internal constructor(
+  private val root: File,
+  /** 完整性依据；null = 只看文件非空（上游默认行为）。 */
+  private val integrity: OnlineChapterIntegrity? = null,
+) {
 
   /** The final (complete only) file of [ref]; absent when not cached. */
   public fun fileFor(ref: OnlineChapterRef): File {
     return File(File(File(root, safe(ref.source)), safe(ref.bookId)), safe(ref.chapterId) + EXTENSION)
   }
 
-  /** True when a complete file of [ref] is stored. */
+  /**
+   * True when a complete file of [ref] is stored.
+   *
+   * 完整性依据可用时会连尺寸一起比对：连接中断留下的**截断文件**尺寸对不上，
+   * 于是这里返回 false，缓存任务会把它重下（上游只判非空，截断文件会被永久
+   * 当成已缓存）。
+   */
   public fun isCached(ref: OnlineChapterRef): Boolean {
     val file = fileFor(ref)
-    return file.exists() && file.length() > 0L
+    if (!file.exists() || file.length() <= 0L) {
+      return false
+    }
+    val expected = integrity?.expectedSize(ref) ?: return true
+    return file.length() == expected
   }
 
   /** How many complete chapters of a book are stored. */
@@ -38,7 +56,9 @@ public class OnlineChapterFileCache internal constructor(private val root: File)
     bookId: String,
   ): Int {
     val dir = File(File(root, safe(source)), safe(bookId))
-    return dir.listFiles()?.count { it.isFile && it.name.endsWith(EXTENSION) && it.length() > 0L } ?: 0
+    return dir.listFiles()
+      ?.count { it.isFile && it.name.endsWith(EXTENSION) && isCompleteFile(source, bookId, it) }
+      ?: 0
   }
 
   /** How many bytes of complete chapters of a book are stored. */
@@ -48,8 +68,31 @@ public class OnlineChapterFileCache internal constructor(private val root: File)
   ): Long {
     val dir = File(File(root, safe(source)), safe(bookId))
     return dir.listFiles()
-      ?.filter { it.isFile && it.name.endsWith(EXTENSION) }
+      ?.filter { it.isFile && it.name.endsWith(EXTENSION) && isCompleteFile(source, bookId, it) }
       ?.sumOf { it.length() } ?: 0L
+  }
+
+  /**
+   * 一个已落盘文件是否算「完整章节」：非空 + （有依据时）尺寸对得上。
+   * 文件名里的章节 id 是 URL 编码过的，解码后回问完整性依据；解不回来
+   * （超长 id 被哈希过）就按「无依据」处理，不误删。
+   */
+  private fun isCompleteFile(
+    source: String,
+    bookId: String,
+    file: File,
+  ): Boolean {
+    if (file.length() <= 0L) {
+      return false
+    }
+    if (integrity == null) {
+      return true
+    }
+    val chapterId = runCatching {
+      java.net.URLDecoder.decode(file.name.removeSuffix(EXTENSION), Charsets.UTF_8.name())
+    }.getOrNull() ?: return true
+    val expected = integrity.expectedSize(OnlineChapterRef(source, bookId, chapterId)) ?: return true
+    return file.length() == expected
   }
 
   /**

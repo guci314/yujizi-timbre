@@ -120,6 +120,7 @@ public class OnlineBookCacheManager(
   @OnlineCacheJobsStore private val jobsStore: DataStore<List<OnlineCacheJob>>,
   private val meteredNetworkChecker: MeteredNetworkChecker,
   private val playbackIoGate: PlaybackIoGate,
+  private val integrity: OnlineChapterIntegrity,
   private val dispatcherProvider: DispatcherProvider,
 ) {
 
@@ -594,9 +595,28 @@ public class OnlineBookCacheManager(
             input.copyTo(output)
           }
         }
-        if (tmp.length() <= 0L) {
+        // ① 长度闸：HTTP 声明的 Content-Length 必须与实收字节一致。
+        //    连接被中途掐断时 copyTo 会静默返回半截内容 —— 上游原先只判「非空」
+        //    就发布，于是截断的音频被当成完整缓存，播放时长自然不对。
+        val declared = response.body.contentLength()
+        val received = tmp.length()
+        if (received <= 0L || (declared >= 0L && received != declared)) {
+          Logger.w("Chapter $ref: 长度不符（声明 $declared，实收 $received），丢弃重下")
           tmp.delete()
           return@withContext false
+        }
+        // ② 哈希闸：内容方给了期望 sha256 就必须对上。
+        //    清单里的尺寸与实收一致时才比哈希 —— 服务端换了文件而清单没更新时，
+        //    尺寸会先变，这里跳过哈希，避免永远重下失败。
+        val expectedHash = integrity.expectedSha256(ref)
+        val expectedSize = integrity.expectedSize(ref)
+        if (expectedHash != null && (expectedSize == null || expectedSize == received)) {
+          val actual = tmp.sha256Hex()
+          if (!actual.equals(expectedHash, ignoreCase = true)) {
+            Logger.w("Chapter $ref: sha256 不符（期望 $expectedHash，实得 $actual），丢弃重下")
+            tmp.delete()
+            return@withContext false
+          }
         }
         coroutineContext.ensureActive()
         fileCache.completeDownload(ref)

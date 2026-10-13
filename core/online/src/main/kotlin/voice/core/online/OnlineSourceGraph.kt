@@ -98,8 +98,14 @@ public interface OnlineSourceGraph {
 
   @Provides
   @SingleIn(AppScope::class)
-  public fun onlineChapterFileCache(application: Application): OnlineChapterFileCache {
-    return OnlineChapterFileCache(File(application.filesDir, OnlineChapterFileCache.CACHE_DIR))
+  public fun onlineChapterFileCache(
+    application: Application,
+    integrity: OnlineChapterIntegrity,
+  ): OnlineChapterFileCache {
+    return OnlineChapterFileCache(
+      root = File(application.filesDir, OnlineChapterFileCache.CACHE_DIR),
+      integrity = integrity,
+    )
   }
 
   @Provides

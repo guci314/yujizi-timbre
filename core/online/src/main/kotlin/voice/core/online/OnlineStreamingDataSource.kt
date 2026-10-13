@@ -59,9 +59,14 @@ public class OnlineStreamingDataSource internal constructor(
       ?: throw IOException("Not an online chapter uri: $uri")
     // a manually cached chapter plays straight from its file: no resolve, no
     // network, so cached episodes keep playing offline
-    fileCache?.fileFor(ref)
-      ?.takeIf { it.exists() && it.length() > 0L }
-      ?.let { return openFile(dataSpec, ref, it) }
+    //
+    // 用 isCached 而不是「非空」：完整性依据可用时它会连尺寸一起比对，
+    // 于是连接中断留下的**截断文件不会被播出来**（上游只判非空，截断文件
+    // 会被直接当成本地文件播放，听起来就是「音频长度不对」）。
+    val cache = fileCache
+    if (cache != null && cache.isCached(ref)) {
+      return openFile(dataSpec, ref, cache.fileFor(ref))
+    }
     val response = openResponse(dataSpec, ref)
     this.response = response
     openedUri = Uri.parse(response.request.url.toString())

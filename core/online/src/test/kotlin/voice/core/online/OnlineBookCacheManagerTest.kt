@@ -25,6 +25,7 @@ import voice.core.online.ResolvedStream
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -265,13 +266,60 @@ class OnlineBookCacheManagerTest {
 
   private fun state(): OnlineCacheState? = manager.states.value[bookId.value]
 
+  @Test
+  fun `a download whose bytes do not match the manifest is not cached`() = runTest {
+    val body = "fake-audio-bytes".repeat(64)
+    // 长度对得上、但 sha256 对不上：内容被改坏/被中间层换过
+    manager = createManager(integrity = integrityExpecting("c2" to (body.length.toLong() to "0".repeat(64))))
+    stubBook()
+    enqueueAudio()
+    coEvery { catalog.resolveStreamUrl(any()) } returns ResolvedStream(server.url("/audio.mp3").toString())
+
+    manager.cacheUpcoming(bookId, 1)
+    await("the job to give up on the mismatching chapter") { state()?.downloading == false }
+
+    assertFalse(
+      fileCache.isCached(OnlineChapterRef("A", "b1", "c2")),
+      "sha256 对不上的下载不能被当成已缓存",
+    )
+  }
+
+  @Test
+  fun `a chapter whose stored file has the wrong size is downloaded again`() = runTest {
+    val body = "fake-audio-bytes".repeat(64)
+    val ref = OnlineChapterRef("A", "b1", "c2")
+    val integrity = integrityExpecting("c2" to (body.length.toLong() to sha256HexOf(body)))
+    // 文件缓存也必须拿到同一份依据，否则它仍按「非空」判定（生产里由
+    // OnlineSourceGraph 注入）
+    fileCache = OnlineChapterFileCache(createTempDirectory("online-cache-sized").toFile(), integrity)
+    // 先塞一个「截断的旧缓存」：非空、但尺寸比清单小
+    fileCache.fileFor(ref).apply { parentFile?.mkdirs() }.writeBytes(ByteArray(10))
+    manager = createManager(integrity = integrity)
+    stubBook()
+    enqueueAudio()
+    coEvery { catalog.resolveStreamUrl(any()) } returns ResolvedStream(server.url("/audio.mp3").toString())
+
+    manager.cacheUpcoming(bookId, 1)
+    await("the truncated file to be replaced") { fileCache.fileFor(ref).length() == body.length.toLong() }
+
+    assertTrue(fileCache.isCached(ref), "重下之后应当是完整的")
+  }
+
+  private fun sha256HexOf(text: String): String {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    return digest.digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+  }
+
   private fun enqueueAudio() {
     repeat(2) {
       server.enqueue(MockResponse.Builder().code(200).body("fake-audio-bytes".repeat(64)).build())
     }
   }
 
-  private fun TestScope.createManager(jobs: List<OnlineCacheJob> = emptyList()): OnlineBookCacheManager {
+  private fun TestScope.createManager(
+    jobs: List<OnlineCacheJob> = emptyList(),
+    integrity: OnlineChapterIntegrity = NoIntegrityExpectations,
+  ): OnlineBookCacheManager {
     jobsStore = FakeStore(jobs)
     return OnlineBookCacheManager(
       catalog = catalog,
@@ -284,12 +332,30 @@ class OnlineBookCacheManagerTest {
       jobsStore = jobsStore,
       meteredNetworkChecker = MeteredNetworkChecker { metered },
       playbackIoGate = PlaybackIoGate(),
+      integrity = integrity,
       dispatcherProvider = DispatcherProvider(
         main = UnconfinedTestDispatcher(testScheduler),
         mainImmediate = UnconfinedTestDispatcher(testScheduler),
         io = UnconfinedTestDispatcher(testScheduler),
       ),
     )
+  }
+
+  /** 没有期望值的完整性依据（= 上游默认行为：只按长度校验）。 */
+  private object NoIntegrityExpectations : OnlineChapterIntegrity {
+    override fun expectedSize(ref: OnlineChapterRef): Long? = null
+
+    override fun expectedSha256(ref: OnlineChapterRef): String? = null
+  }
+
+  /** 按章节 id 给出期望字节数与 sha256 的假依据。 */
+  private fun integrityExpecting(vararg expectations: Pair<String, Pair<Long, String>>): OnlineChapterIntegrity {
+    val byChapter = expectations.toMap()
+    return object : OnlineChapterIntegrity {
+      override fun expectedSize(ref: OnlineChapterRef): Long? = byChapter[ref.chapterId]?.first
+
+      override fun expectedSha256(ref: OnlineChapterRef): String? = byChapter[ref.chapterId]?.second
+    }
   }
 
   private fun stubBook(
