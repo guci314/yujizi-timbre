@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import voice.core.common.rootGraphAs
 import voice.core.data.BookId
 import voice.core.ui.PlayButton
+import voice.core.online.OnlineCacheState
 import voice.core.ui.UpdateDialog
 import voice.core.ui.VoiceTheme
 import voice.core.ui.playButtonSharedBoundsModifier
@@ -99,6 +100,12 @@ fun BookOverviewScreen(modifier: Modifier = Modifier) {
     },
   )
 
+  // 在线书的缓存任务状态：对话框在「开始缓存」后就收起来，进度改由书卡显示
+  val cacheStates = onlineBookActionsViewModel.cacheStates.collectAsState()
+  val cacheStateFor: (voice.core.data.BookId) -> voice.core.online.OnlineCacheState? = { bookId ->
+    cacheStates.value[bookId.value]?.takeIf { it.downloading }
+  }
+
   var showBottomSheet by remember { mutableStateOf(false) }
   BookOverview(
     viewState = viewState,
@@ -117,6 +124,7 @@ fun BookOverviewScreen(modifier: Modifier = Modifier) {
     onSearchBookClick = bookOverviewViewModel::onSearchBookClick,
     onClearSearchHistory = bookOverviewViewModel::onClearSearchHistory,
     onPermissionBugCardClick = bookOverviewViewModel::onPermissionBugCardClick,
+    cacheStateFor = cacheStateFor,
   )
   val deleteBookViewState = deleteBookViewModel.state.value
   if (deleteBookViewState != null) {
@@ -236,6 +244,7 @@ internal fun BookOverview(
   onSearchBookClick: (BookId) -> Unit,
   onClearSearchHistory: () -> Unit,
   onPermissionBugCardClick: () -> Unit,
+  cacheStateFor: (BookId) -> OnlineCacheState? = { null },
   modifier: Modifier = Modifier,
 ) {
   val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -289,6 +298,7 @@ internal fun BookOverview(
               onRetryImport = onRetryImport,
               showPermissionBugCard = viewState.showStoragePermissionBugCard,
               onPermissionBugCardClick = onPermissionBugCardClick,
+              cacheStateFor = cacheStateFor,
             )
           }
           BookOverviewLayoutMode.Grid -> {
@@ -299,6 +309,7 @@ internal fun BookOverview(
               onRetryImport = onRetryImport,
               showPermissionBugCard = viewState.showStoragePermissionBugCard,
               onPermissionBugCardClick = onPermissionBugCardClick,
+              cacheStateFor = cacheStateFor,
             )
           }
         }

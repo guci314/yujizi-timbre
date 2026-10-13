@@ -332,7 +332,16 @@ internal fun OnlineCacheDialog(
           }
         } else {
           Button(
-            onClick = onStartCache,
+            onClick = {
+              onStartCache()
+              // 点开始后把面板收起来：缓存任务在后台跑，进度由**书卡**上的
+              // 「正在缓存 x/y」显示，用户留在书架继续听，不用被面板挡着。
+              // 想中途看/取消，再长按书 → 缓存书籍即可（那时的按钮是「停止缓存」）。
+              scope.launch {
+                sheetState.hide()
+                onDismiss()
+              }
+            },
             enabled = !viewState.loading && info != null && remaining > 0,
           ) {
             Text(stringResource(StringsR.string.online_cache_start))

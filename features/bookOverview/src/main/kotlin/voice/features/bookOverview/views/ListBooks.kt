@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import voice.core.data.BookId
+import voice.core.online.OnlineCacheState
 import voice.core.ui.sharedCoverElementModifier
 import voice.features.bookOverview.overview.BookOverviewCategory
 import voice.features.bookOverview.overview.BookOverviewItemViewState
@@ -47,6 +48,7 @@ internal fun ListBooks(
   onRetryImport: (BookId) -> Unit,
   showPermissionBugCard: Boolean,
   onPermissionBugCardClick: () -> Unit,
+  cacheStateFor: (BookId) -> OnlineCacheState?,
 ) {
   LazyColumn(
     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -81,6 +83,7 @@ internal fun ListBooks(
           onBookClick = onBookClick,
           onBookLongClick = onBookLongClick,
           onRetryImport = onRetryImport,
+          cacheState = cacheStateFor(bookState.value.id),
         )
       }
       item {
@@ -96,6 +99,7 @@ internal fun ListBookRow(
   onBookClick: (BookId) -> Unit,
   onBookLongClick: (BookId) -> Unit,
   onRetryImport: (BookId) -> Unit,
+  cacheState: OnlineCacheState? = null,
   modifier: Modifier = Modifier,
 ) {
   BookCard(
@@ -132,6 +136,14 @@ internal fun ListBookRow(
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
           )
+
+          // 在线书正在缓存时，进度显示在卡片上（对话框在点开始后就收起来了）
+          if (cacheState != null && cacheState.downloading) {
+            OnlineCacheProgressText(
+              state = cacheState,
+              modifier = Modifier.padding(end = 12.dp),
+            )
+          }
 
           val importError = book.importError
           if (importError != null) {

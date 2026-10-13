@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import voice.core.data.BookId
+import voice.core.online.OnlineCacheState
 import voice.core.ui.sharedCoverElementModifier
 import voice.features.bookOverview.overview.BookOverviewCategory
 import voice.features.bookOverview.overview.BookOverviewItemViewState
@@ -50,6 +51,7 @@ internal fun GridBooks(
   onRetryImport: (BookId) -> Unit,
   showPermissionBugCard: Boolean,
   onPermissionBugCardClick: () -> Unit,
+  cacheStateFor: (BookId) -> OnlineCacheState?,
 ) {
   val cellCount = gridColumnCount()
   LazyVerticalGrid(
@@ -87,6 +89,7 @@ internal fun GridBooks(
           onBookClick = onBookClick,
           onBookLongClick = onBookLongClick,
           onRetryImport = onRetryImport,
+          cacheState = cacheStateFor(bookState.value.id),
         )
       }
       item(
@@ -104,6 +107,7 @@ internal fun GridBook(
   onBookClick: (BookId) -> Unit,
   onBookLongClick: (BookId) -> Unit,
   onRetryImport: (BookId) -> Unit,
+  cacheState: OnlineCacheState? = null,
 ) {
   BookCard(
     bookId = book.id,
@@ -153,6 +157,11 @@ internal fun GridBook(
           maxLines = 3,
           overflow = TextOverflow.Ellipsis,
         )
+
+        // 在线书正在缓存时，进度显示在卡片上（对话框在点开始后就收起来了）
+        if (cacheState != null && cacheState.downloading) {
+          OnlineCacheProgressText(state = cacheState)
+        }
 
         val importError = book.importError
         if (importError != null) {

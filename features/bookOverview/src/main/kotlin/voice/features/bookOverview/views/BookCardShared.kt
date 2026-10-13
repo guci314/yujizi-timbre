@@ -3,6 +3,7 @@ package voice.features.bookOverview.views
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import voice.core.data.BookId
+import voice.core.online.OnlineCacheState
 import voice.core.online.OnlineUri
 import voice.core.scanner.BookScanError
 import voice.core.scanner.BookScanProgress
@@ -291,6 +293,43 @@ internal fun BookImportProgressText(
     overflow = TextOverflow.Ellipsis,
     modifier = modifier,
   )
+}
+
+/**
+ * 在线书「正在缓存 x / y」的卡片角标。
+ *
+ * 缓存对话框点「开始缓存」后会自己收起来（不挡着用户），任务在后台跑，
+ * 所以进度改由书卡显示 —— 与本地「导入中」同一套样式。
+ */
+@Composable
+internal fun OnlineCacheProgressText(
+  state: OnlineCacheState,
+  modifier: Modifier = Modifier,
+) {
+  val fraction = if (state.total <= 0) {
+    0f
+  } else {
+    (state.done.toFloat() / state.total).coerceIn(0f, 1f)
+  }
+  Column(modifier = modifier.padding(top = 4.dp)) {
+    Text(
+      text = stringResource(
+        StringsR.string.online_cache_downloading,
+        state.done,
+        state.total,
+        (fraction * 100).toInt(),
+      ),
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = 1,
+    )
+    LinearProgressIndicator(
+      progress = { fraction },
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(top = 3.dp),
+    )
+  }
 }
 
 /** 扩展源寻址前缀，与 ExtensionEngineProvider.SOURCE_PREFIX 保持一致。 */

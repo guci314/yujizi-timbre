@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import dev.zacsweers.metro.ContributesIntoSet
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import voice.core.common.DispatcherProvider
 import voice.core.common.MainScope
@@ -112,6 +113,14 @@ class OnlineBookActionsViewModel(
   internal fun cacheProgress(bookUri: String): Flow<OnlineCacheState?> {
     return cacheManager.stateFor(bookUri)
   }
+
+  /**
+   * 所有书籍的缓存任务状态，供书架卡片显示「正在缓存 x/y」。
+   *
+   * 缓存对话框在点「开始缓存」后会自己收起来（不挡着用户继续听），但任务仍在后台跑，
+   * 所以进度改由书卡承担 —— 否则中间这段就完全没反馈了。
+   */
+  internal val cacheStates: StateFlow<Map<String, OnlineCacheState>> = cacheManager.states
 
   private fun refreshChapters(bookId: BookId) {
     _refreshState.value = OnlineRefreshUiState.Refreshing(bookId)
