@@ -36,3 +36,6 @@ testResults
 /*.json
 !/update.json
 !/renovate.json
+
+# 完整性清单计算中途的临时产物
+*.partial
