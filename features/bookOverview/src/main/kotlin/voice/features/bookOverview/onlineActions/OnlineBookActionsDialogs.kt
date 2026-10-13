@@ -393,3 +393,62 @@ private fun CacheProgress(
     }
   }
 }
+
+/**
+ * 「清除缓存」菜单项的确认框：清缓存会删掉已下载的音频文件且不可撤销，
+ * 所以先把「要删多少」摆出来让用户确认；这本书没缓存过就只说一句，
+ * 只给一个「确定」。
+ */
+@Composable
+internal fun OnlineClearCacheDialog(
+  viewState: OnlineClearCacheDialogState,
+  onConfirm: () -> Unit,
+  onDismiss: () -> Unit,
+) {
+  val hasCache = viewState.cachedCount > 0
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(StringsR.string.online_cache_clear)) },
+    text = {
+      when {
+        viewState.loading -> {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+          ) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+          }
+        }
+        hasCache -> {
+          Text(
+            text = stringResource(
+              StringsR.string.online_cache_clear_message,
+              viewState.cachedCount,
+              formatBytes(viewState.cachedBytes),
+            ),
+          )
+        }
+        else -> Text(stringResource(StringsR.string.online_cache_clear_nothing))
+      }
+    },
+    confirmButton = {
+      TextButton(onClick = if (hasCache) onConfirm else onDismiss) {
+        Text(
+          stringResource(
+            if (hasCache) StringsR.string.online_cache_clear_action else StringsR.string.common_dialog_confirm,
+          ),
+        )
+      }
+    },
+    dismissButton = if (hasCache) {
+      {
+        TextButton(onClick = onDismiss) {
+          Text(stringResource(StringsR.string.common_dialog_cancel))
+        }
+      }
+    } else {
+      null
+    },
+  )
+}

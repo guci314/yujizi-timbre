@@ -297,6 +297,9 @@
     <string name="online.cache.failed_count">Failed: %1$d</string>
     <string name="online.cache.clear">Clear cache</string>
     <string name="online.cache.clear_confirm">Tap again to clear</string>
+    <string name="online.cache.clear_message">Deletes the %1$d cached episodes of this book (%2$s). The book and your listening progress stay.</string>
+    <string name="online.cache.clear_action">Clear</string>
+    <string name="online.cache.clear_nothing">Nothing cached for this book yet.</string>
     <string name="online.cache.metered_title">Currently on mobile data</string>
     <string name="online.cache.metered_message">The active network is mobile data. Continuing to cache will use up your data volume.</string>
     <string name="online.cache.metered_book">Book: %1$s</string>

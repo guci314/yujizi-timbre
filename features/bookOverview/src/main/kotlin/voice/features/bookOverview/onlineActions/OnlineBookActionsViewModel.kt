@@ -39,6 +39,19 @@ internal data class OnlineCacheDialogState(
   val loading: Boolean = true,
 )
 
+/**
+ * 「清除缓存」菜单项的确认状态。
+ *
+ * 清除是不可逆的（删掉已下载的音频文件），所以从菜单直接点进来时先问一句，
+ * 并告诉用户会删掉多少 —— 而不是像缓存对话框里那样「再点一次」就算确认。
+ */
+internal data class OnlineClearCacheDialogState(
+  val bookId: BookId,
+  val cachedCount: Int = 0,
+  val cachedBytes: Long = 0L,
+  val loading: Boolean = true,
+)
+
 @SingleIn(BookOverviewScope::class)
 @ContributesIntoSet(BookOverviewScope::class)
 class OnlineBookActionsViewModel(
@@ -55,9 +68,16 @@ class OnlineBookActionsViewModel(
   private val _cacheDialog = mutableStateOf<OnlineCacheDialogState?>(null)
   internal val cacheDialog: State<OnlineCacheDialogState?> get() = _cacheDialog
 
+  private val _clearCacheDialog = mutableStateOf<OnlineClearCacheDialogState?>(null)
+  internal val clearCacheDialog: State<OnlineClearCacheDialogState?> get() = _clearCacheDialog
+
   override suspend fun items(bookId: BookId): List<BottomSheetItem> {
     if (!catalog.isOnlineBookId(bookId)) return emptyList()
-    return listOf(BottomSheetItem.OnlineRefreshChapters, BottomSheetItem.OnlineCacheBook)
+    return listOf(
+      BottomSheetItem.OnlineRefreshChapters,
+      BottomSheetItem.OnlineCacheBook,
+      BottomSheetItem.OnlineClearCache,
+    )
   }
 
   override suspend fun onItemClick(
@@ -67,6 +87,7 @@ class OnlineBookActionsViewModel(
     when (item) {
       BottomSheetItem.OnlineRefreshChapters -> refreshChapters(bookId)
       BottomSheetItem.OnlineCacheBook -> openCacheDialog(bookId)
+      BottomSheetItem.OnlineClearCache -> openClearCacheDialog(bookId)
       else -> return
     }
   }
@@ -170,6 +191,39 @@ class OnlineBookActionsViewModel(
       val _ = runCatching { cacheManager.clearBook(current.bookId) }
       reloadCacheInfo(current.bookId)
     }
+  }
+
+  /**
+   * 「清除缓存」菜单项：先读这本书缓存了多少，再弹一次正经确认。
+   * （缓存对话框里那个是「再点一次」就地确认；从菜单直接点进来没有上下文，
+   * 所以这里把要删的集数与体积摆出来。）
+   */
+  private fun openClearCacheDialog(bookId: BookId) {
+    _clearCacheDialog.value = OnlineClearCacheDialogState(bookId = bookId, loading = true)
+    scope.launch {
+      val info = runCatching { cacheManager.cachedInfo(bookId) }.getOrNull()
+      val current = _clearCacheDialog.value
+      if (current != null && current.bookId == bookId) {
+        _clearCacheDialog.value = current.copy(
+          cachedCount = info?.cachedCount ?: 0,
+          cachedBytes = info?.cachedBytes ?: 0L,
+          loading = false,
+        )
+      }
+    }
+  }
+
+  /** [cacheManager.clearBook] 会先停掉这本书正在跑的缓存任务。 */
+  internal fun onConfirmClearCache() {
+    val current = _clearCacheDialog.value ?: return
+    _clearCacheDialog.value = null
+    scope.launch {
+      val _ = runCatching { cacheManager.clearBook(current.bookId) }
+    }
+  }
+
+  internal fun onDismissClearCache() {
+    _clearCacheDialog.value = null
   }
 }
 

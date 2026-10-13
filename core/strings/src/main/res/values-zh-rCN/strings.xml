@@ -134,6 +134,9 @@
     <string name="online.cache.failed_count">%1$d 集失败</string>
     <string name="online.cache.clear">清除缓存</string>
     <string name="online.cache.clear_confirm">再点一次清除</string>
+    <string name="online.cache.clear_message">将删除本书已缓存的 %1$d 集音频（%2$s）。书籍与播放进度会保留。</string>
+    <string name="online.cache.clear_action">清除</string>
+    <string name="online.cache.clear_nothing">这本书还没有已缓存的音频。</string>
     <string name="online.cache.metered_title">当前为流量</string>
     <string name="online.cache.metered_message">当前使用的是移动数据流量，继续缓存会消耗流量。</string>
     <string name="online.cache.metered_book">书籍：%1$s</string>

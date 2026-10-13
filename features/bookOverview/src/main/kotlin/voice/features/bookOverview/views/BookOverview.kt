@@ -46,6 +46,7 @@ import voice.features.bookOverview.deleteBook.DeleteBookDialog
 import voice.features.bookOverview.di.BookOverviewGraph
 import voice.features.bookOverview.editTitle.EditBookTitleDialog
 import voice.features.bookOverview.onlineActions.OnlineCacheDialog
+import voice.features.bookOverview.onlineActions.OnlineClearCacheDialog
 import voice.features.bookOverview.onlineActions.OnlineRefreshDialog
 import voice.features.bookOverview.overview.BookOverviewCategory
 import voice.features.bookOverview.overview.BookOverviewItemViewState
@@ -179,6 +180,14 @@ fun BookOverviewScreen(modifier: Modifier = Modifier) {
       onCancelCache = onlineBookActionsViewModel::onCancelCache,
       onClearCache = onlineBookActionsViewModel::onClearCache,
       onDismiss = onlineBookActionsViewModel::onDismissCache,
+    )
+  }
+  val onlineClearCacheState = onlineBookActionsViewModel.clearCacheDialog.value
+  if (onlineClearCacheState != null) {
+    OnlineClearCacheDialog(
+      viewState = onlineClearCacheState,
+      onConfirm = onlineBookActionsViewModel::onConfirmClearCache,
+      onDismiss = onlineBookActionsViewModel::onDismissClearCache,
     )
   }
 
