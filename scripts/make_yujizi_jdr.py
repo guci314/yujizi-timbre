@@ -9,8 +9,16 @@ import json
 import os
 import zipfile
 
-SRC = "/Users/guci/work/AntennaPod/app/src/main/assets/yujizi_manifest.json"
-OUT_DIR = "/Users/guci/work/Timbre/app/src/main/assets"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 路径都可用环境变量覆盖：源清单在隔壁的 AntennaPod 仓库里（那是音频清单的出处），
+# 产物落在本仓库的 assets 下。默认值按「两个仓库并排放在 ~/work 下」推导，
+# 别把作者本机的绝对路径写进代码。
+SRC = os.environ.get(
+    "YUJIZI_MANIFEST",
+    os.path.join(REPO_ROOT, "..", "AntennaPod", "app", "src", "main", "assets", "yujizi_manifest.json"),
+)
+OUT_DIR = os.environ.get("YUJIZI_ASSETS_DIR", os.path.join(REPO_ROOT, "app", "src", "main", "assets"))
 OUT_JDR = os.path.join(OUT_DIR, "yujizi.jdr")
 
 MANIFEST = {

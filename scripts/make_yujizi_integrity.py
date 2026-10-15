@@ -19,11 +19,21 @@ import time
 import urllib.parse
 import urllib.request
 
-MANIFEST = "/Users/guci/work/AntennaPod/app/src/main/assets/yujizi_manifest.json"
-DEFAULT_OUT = "/Users/guci/work/Timbre/app/src/main/assets/yujizi_integrity.json"
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 三个路径都可用环境变量覆盖。默认值按「网站仓库与 AntennaPod 仓库并排放在本仓库旁边」
+# 推导 —— 别把作者本机的绝对路径写进代码。
+MANIFEST = os.environ.get(
+    "YUJIZI_MANIFEST",
+    os.path.join(REPO_ROOT, "..", "AntennaPod", "app", "src", "main", "assets", "yujizi_manifest.json"),
+)
+DEFAULT_OUT = os.environ.get(
+    "YUJIZI_INTEGRITY_OUT",
+    os.path.join(REPO_ROOT, "app", "src", "main", "assets", "yujizi_integrity.json"),
+)
 
 # 网站仓库根目录：音频源文件就在它的 <专辑目录>/ 下
-SITE_DIR = "/Users/guci/work/yujizi"
+SITE_DIR = os.environ.get("YUJIZI_SITE_DIR", os.path.join(REPO_ROOT, "..", "yujizi"))
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124 Safari/537.36")
 CHUNK = 1 << 20
