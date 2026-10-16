@@ -31,14 +31,18 @@ Timbre 暂不使用 Weblate 等翻译平台，全部界面文案直接维护在�
 
 3. 向 `main` 提交 PR，CI 全绿后合并。
 
-## Sandcastle（自主智能体）| Sandcastle (autonomous agents)
+## Sandcastle 自动智能体 | Sandcastle agent loop
 
-Timbre 用 [Sandcastle](https://www.npmjs.com/package/@ai-hero/sandcastle)（自主智能体循环）处理部分适合自动化的任务（文档、小修复等）：
+Timbre 用 [Sandcastle](https://www.npmjs.com/package/@ai-hero/sandcastle)（自主智能体循环）驱动自主开发循环：
+AI 智能体自动认领带 **`Sandcastle`** 标签的 open issue，在 Docker 沙箱内实现、验证通过后
+直接合回 `main` 并关闭 issue。完整流程（规划、实现、审阅、合并四个角色）见
+[docs/sandcastle.md](docs/sandcastle.md)；配置与运行方式（本地 `npx tsx .sandcastle/main.mts`）
+见 `.sandcastle/` 目录。
 
 - 想把任务交给智能体：新建 GitHub Issue 并打上 `Sandcastle` 标签即可；
-- 循环会在沙箱中逐个领取带该标签的 Issue：在工作树里实现、跑测试与 lint、提交并留下报告；
-- 运行方式：本地 `npx tsx .sandcastle/main.mts`（配置见 `.sandcastle/` 目录）；实现、验证与合并均在 Docker 沙箱内完成；
-- 人类 PR 依旧欢迎，流程与上节相同，不受影响。
+- 人类 PR 依旧欢迎，流程与上节相同，不受影响；想人工处理某个带 `Sandcastle` 标签的
+  issue 时，请先移除该标签（或与维护者确认），避免与智能体重复工作。
+- 智能体的提交信息统一以 `RALPH:` 开头，Code Review 时可据此快速识别。
 
 ## 许可 | License
 
