@@ -39,3 +39,6 @@ testResults
 
 # 完整性清单计算中途的临时产物
 *.partial
+
+# sandcastle host tooling (@ai-hero/sandcastle + tsx)
+node_modules/
