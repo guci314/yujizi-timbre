@@ -10,3 +10,5 @@ Timbre 用 [Sandcastle](https://github.com/mattpocock/sandcastle) 驱动自主�
 - **合并（Merger）**：验证通过后把分支合回 `main` 并关闭对应 issue。
 
 人无需手动分派：给 issue 打上 `Sandcastle` 标签即进入队列。运行入口：`npx tsx .sandcastle/main.mts`。
+
+把任务交给智能体、以及这对人类 PR 流程的影响，见 [CONTRIBUTING.md](../CONTRIBUTING.md) 的 Sandcastle 一节。
