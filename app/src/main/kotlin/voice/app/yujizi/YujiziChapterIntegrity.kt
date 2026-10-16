@@ -36,9 +36,7 @@ internal data class YujiziIntegrity(
  */
 @ContributesBinding(AppScope::class)
 @Inject
-public class YujiziChapterIntegrity(
-  private val application: Application,
-) : OnlineChapterIntegrity {
+public class YujiziChapterIntegrity(private val application: Application) : OnlineChapterIntegrity {
 
   private val json = Json { ignoreUnknownKeys = true }
 

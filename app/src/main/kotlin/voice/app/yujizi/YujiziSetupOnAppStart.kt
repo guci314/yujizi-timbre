@@ -89,5 +89,4 @@ public class YujiziSetupOnAppStart(
       Logger.i("玉机子：书架新增 $added 部经目")
     }
   }
-
 }

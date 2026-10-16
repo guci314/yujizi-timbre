@@ -99,8 +99,8 @@ internal fun ListBookRow(
   onBookClick: (BookId) -> Unit,
   onBookLongClick: (BookId) -> Unit,
   onRetryImport: (BookId) -> Unit,
-  cacheState: OnlineCacheState? = null,
   modifier: Modifier = Modifier,
+  cacheState: OnlineCacheState? = null,
 ) {
   BookCard(
     bookId = book.id,
