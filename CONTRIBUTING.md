@@ -31,6 +31,17 @@ Timbre 暂不使用 Weblate 等翻译平台，全部界面文案直接维护在�
 
 3. 向 `main` 提交 PR，CI 全绿后合并。
 
+## Sandcastle 自动智能体 | Sandcastle agent loop
+
+Timbre 用 Sandcastle 驱动自主开发循环：AI 智能体自动认领带 **`Sandcastle`** 标签的
+open issue（一次一个），在沙箱内实现、验证通过后直接合回 `main` 并关闭 issue。
+完整流程见 [docs/sandcastle.md](docs/sandcastle.md)。
+
+对人工贡献者的影响：
+
+- 想人工处理某个带 `Sandcastle` 标签的 issue 时，请先移除该标签（或与维护者确认），避免与智能体重复工作。
+- 智能体的提交信息统一以 `RALPH:` 开头，Code Review 时可据此快速识别。
+
 ## 许可 | License
 
 Timbre 基于 [Voice](https://github.com/PaulWoitaschek/Voice)（GPLv3）二次开发，
