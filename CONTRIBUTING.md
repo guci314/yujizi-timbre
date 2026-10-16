@@ -37,7 +37,7 @@ Timbre 用 [Sandcastle](https://www.npmjs.com/package/@ai-hero/sandcastle)（自
 
 - 想把任务交给智能体：新建 GitHub Issue 并打上 `Sandcastle` 标签即可；
 - 循环会在沙箱中逐个领取带该标签的 Issue：在工作树里实现、跑测试与 lint、提交并留下报告；
-- 运行方式：本地 `npm run sandcastle`，或等待定时 CI 触发；实现、review 与合并均在 Docker 沙箱内完成；
+- 运行方式：本地 `npx tsx .sandcastle/main.mts`（配置见 `.sandcastle/` 目录）；实现、验证与合并均在 Docker 沙箱内完成；
 - 人类 PR 依旧欢迎，流程与上节相同，不受影响。
 
 ## 许可 | License
