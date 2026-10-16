@@ -1,6 +1,6 @@
-# Sandcastle 智能体循环 | Sandcastle agent loop
+# Sandcastle 智能体循环
 
-Timbre 用 [Sandcastle](https://github.com/ai-hero/sandcastle) 驱动自主开发循环（配置在 `.sandcastle/`）：AI 智能体领取带 **`Sandcastle`** 标签的 open issue，一次处理一个，直到清空。
+Timbre 用 [Sandcastle](https://github.com/mattpocock/sandcastle) 驱动自主开发循环（配置在 `.sandcastle/`）：AI 智能体领取带 **`Sandcastle`** 标签的 open issue，一次处理一个，直到清空。
 
 循环由四个角色组成：
 
