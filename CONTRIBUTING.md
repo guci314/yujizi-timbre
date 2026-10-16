@@ -31,6 +31,15 @@ Timbre 暂不使用 Weblate 等翻译平台，全部界面文案直接维护在�
 
 3. 向 `main` 提交 PR，CI 全绿后合并。
 
+## Sandcastle（自主智能体）| Sandcastle (autonomous agents)
+
+Timbre 用 [Sandcastle](https://www.npmjs.com/package/@ai-hero/sandcastle)（自主智能体循环）处理部分适合自动化的任务（文档、小修复等）：
+
+- 想把任务交给智能体：新建 GitHub Issue 并打上 `Sandcastle` 标签即可；
+- 循环会在沙箱中逐个领取带该标签的 Issue：在工作树里实现、跑测试与 lint、提交并留下报告；
+- 运行方式：本地 `npm run sandcastle`，或等待定时 CI 触发；实现、review 与合并均在 Docker 沙箱内完成；
+- 人类 PR 依旧欢迎，流程与上节相同，不受影响。
+
 ## 许可 | License
 
 Timbre 基于 [Voice](https://github.com/PaulWoitaschek/Voice)（GPLv3）二次开发，
