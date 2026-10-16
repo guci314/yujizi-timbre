@@ -1,0 +1,78 @@
+# Sandcastle — scheduled autonomous agent loop
+#
+# 每天（北京时间清晨）在 GitHub runner 上跑一轮 planner→implementers(reviews)→merger，
+# 处理所有带 Sandcastle 标签的 open issues；没有工单时直接跳过（不耗 LLM 额度）。
+# 也可在 Actions 页手动触发（workflow_dispatch）。
+#
+# 需要 repo secret: OPENCODE_GO_API_KEY （gh secret set OPENCODE_GO_API_KEY）
+
+name: sandcastle
+
+on:
+  schedule:
+    - cron: "0 21 * * *" # UTC 21:00 = 北京时间次日清晨 5 点
+  workflow_dispatch:
+
+concurrency:
+  group: sandcastle
+  cancel-in-progress: false
+
+permissions:
+  contents: write # merge 后 push 回 main
+  issues: write # 容器内 gh issue close
+
+jobs:
+  sandcastle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # merge-to-head / worktree 操作要完整历史
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Gate — skip when no open Sandcastle issues
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          count=$(gh issue list --state open --label Sandcastle --limit 10 --json number --jq length)
+          echo "open_issue_count=$count" >> "$GITHUB_OUTPUT"
+          echo "Open Sandcastle issues: $count"
+
+      - if: steps.gate.outputs.open_issue_count != '0'
+        name: Build sandbox image (JDK25 + Android SDK 37 + OpenCode v2)
+        run: |
+          docker build -f .sandcastle/Dockerfile \
+            --build-arg AGENT_UID=$(id -u) --build-arg AGENT_GID=$(id -g) \
+            -t sandcastle:yujizi-timbre .
+
+      - if: steps.gate.outputs.open_issue_count != '0'
+        name: Run sandcastle loop
+        env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf 'OPENCODE_GO_API_KEY=%s\nGH_TOKEN=%s\n' "$OPENCODE_GO_API_KEY" "$GH_TOKEN" > .sandcastle/.env
+          chmod 600 .sandcastle/.env
+          # 沙箱 agent 的 commit 身份：仓库级 git config 会随 worktree 进容器
+          git config user.name "sandcastle-bot"
+          git config user.email "actions@github.com"
+          # Gradle 依赖缓存（容器只 bind-mount caches/ + wrapper/，凭据文件不挂）
+          mkdir -p ~/.gradle/caches ~/.gradle/wrapper
+          npx tsx .sandcastle/main.mts
+
+      - if: steps.gate.outputs.open_issue_count != '0'
+        name: Push merged commits back to main
+        run: |
+          if git log origin/main..HEAD --oneline | head -1 | grep -q .; then
+            git push origin HEAD:main
+          else
+            echo "No new commits to push."
+          fi
