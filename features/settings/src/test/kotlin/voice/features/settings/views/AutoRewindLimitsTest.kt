@@ -17,15 +17,12 @@ class AutoRewindLimitsTest {
   }
 
   @Test
-  fun `legacy saved values stay selectable without clamping`() {
+  fun `legacy saved values stay selectable`() {
     val legacyLimit = 20
     val storeDefault = 2
 
     (0..legacyLimit).forEach { seconds ->
-      assertEquals(
-        expected = seconds,
-        actual = seconds.coerceIn(AutoRewindLimits.MIN_SECONDS, AutoRewindLimits.MAX_SECONDS),
-      )
+      assertTrue(seconds in AutoRewindLimits.MIN_SECONDS..AutoRewindLimits.MAX_SECONDS)
     }
     assertTrue(storeDefault in AutoRewindLimits.MIN_SECONDS..AutoRewindLimits.MAX_SECONDS)
   }
