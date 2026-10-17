@@ -43,6 +43,11 @@ internal fun AutoRewindRow(
   }
 }
 
+internal object AutoRewindLimits {
+  const val MIN_SECONDS = 0
+  const val MAX_SECONDS = 60
+}
+
 @Composable
 internal fun AutoRewindAmountDialog(
   currentSeconds: Int,
@@ -52,8 +57,8 @@ internal fun AutoRewindAmountDialog(
   TimeSettingDialog(
     title = stringResource(StringsR.string.settings_playback_auto_rewind_title),
     currentSeconds = currentSeconds,
-    minSeconds = 0,
-    maxSeconds = 20,
+    minSeconds = AutoRewindLimits.MIN_SECONDS,
+    maxSeconds = AutoRewindLimits.MAX_SECONDS,
     textPluralRes = StringsR.plurals.duration_seconds,
     onSecondsConfirm = onSecondsConfirm,
     onDismiss = onDismiss,
