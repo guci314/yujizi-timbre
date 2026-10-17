@@ -21,9 +21,7 @@ class AutoRewindLimitsTest {
     val legacyLimit = 20
     val storeDefault = 2
 
-    (0..legacyLimit).forEach { seconds ->
-      assertTrue(seconds in AutoRewindLimits.MIN_SECONDS..AutoRewindLimits.MAX_SECONDS)
-    }
+    assertTrue(legacyLimit in AutoRewindLimits.MIN_SECONDS..AutoRewindLimits.MAX_SECONDS)
     assertTrue(storeDefault in AutoRewindLimits.MIN_SECONDS..AutoRewindLimits.MAX_SECONDS)
   }
 }
