@@ -9,8 +9,10 @@
 name: sandcastle
 
 on:
-  schedule:
-    - cron: "0 21 * * *" # UTC 21:00 = 北京时间次日清晨 5 点
+  # 本地跑为主（npm run sandcastle）：关闭定时，避免 CI 与本地循环抢同一批工单。
+  # 想恢复定时跑时把下面两行注释放开。
+  # schedule:
+  #   - cron: "0 21 * * *" # UTC 21:00 = 北京时间次日清晨 5 点
   workflow_dispatch:
 
 concurrency:
