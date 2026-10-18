@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -488,8 +489,9 @@ internal fun OnlineClearCacheDialog(
         }
         hasCache -> {
           Text(
-            text = stringResource(
-              StringsR.string.online_cache_clear_message,
+            text = pluralStringResource(
+              StringsR.plurals.online_cache_clear_message,
+              viewState.cachedCount,
               viewState.cachedCount,
               formatBytes(viewState.cachedBytes),
             ),

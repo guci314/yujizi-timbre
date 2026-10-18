@@ -244,8 +244,8 @@ internal fun BookOverview(
   onSearchBookClick: (BookId) -> Unit,
   onClearSearchHistory: () -> Unit,
   onPermissionBugCardClick: () -> Unit,
-  cacheStateFor: (BookId) -> OnlineCacheState? = { null },
   modifier: Modifier = Modifier,
+  cacheStateFor: (BookId) -> OnlineCacheState? = { null },
 ) {
   val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
   Scaffold(
