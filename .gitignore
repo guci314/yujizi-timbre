@@ -42,3 +42,8 @@ testResults
 
 # sandcastle host tooling (@ai-hero/sandcastle + tsx)
 node_modules/
+
+# web/ build output and generated service worker
+web/dist/
+web/dev-dist/
+web/*.tsbuildinfo

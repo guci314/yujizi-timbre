@@ -1,0 +1,4 @@
+# pnpm 11 asks before running dependency build scripts.
+# esbuild's postinstall installs its platform binary; vite and vitest cannot run without it.
+allowBuilds:
+  esbuild: true

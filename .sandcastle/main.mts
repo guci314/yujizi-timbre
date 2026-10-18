@@ -76,7 +76,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     // not write code. (Structured output requires maxIterations: 1.)
     maxIterations: 1,
     // Opus for planning: dependency analysis benefits from deeper reasoning.
-    agent: sandcastle.opencode("opencode-go/glm-5.3-flash"),
+    agent: sandcastle.opencode("opencode-go/deepseek-v4.1-flash"),
     promptFile: "./.sandcastle/plan-prompt.md",
     // Extract and validate the <plan> JSON into a typed object. Throws
     // StructuredOutputError if the tag is missing, the JSON is malformed, or
@@ -123,7 +123,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           name: "implementer",
           maxIterations: 6,
           idleTimeoutSeconds: IDLE_TIMEOUT_GRADLE,
-          agent: sandcastle.opencode("opencode-go/glm-5.3-flash"),
+          agent: sandcastle.opencode("opencode-go/deepseek-v4.1-flash"),
           promptFile: "./.sandcastle/implement-prompt.md",
           promptArgs: {
             TASK_ID: issue.id,
@@ -138,7 +138,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
             name: "reviewer",
             maxIterations: 1,
             idleTimeoutSeconds: IDLE_TIMEOUT_GRADLE,
-            agent: sandcastle.opencode("opencode-go/glm-5.3-flash"),
+            agent: sandcastle.opencode("opencode-go/deepseek-v4.1-flash"),
             promptFile: "./.sandcastle/review-prompt.md",
             promptArgs: {
               BRANCH: issue.branch,
@@ -209,7 +209,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     name: "merger",
     maxIterations: 1,
     idleTimeoutSeconds: IDLE_TIMEOUT_GRADLE,
-    agent: sandcastle.opencode("opencode-go/glm-5.3-flash"),
+    agent: sandcastle.opencode("opencode-go/deepseek-v4.1-flash"),
     promptFile: "./.sandcastle/merge-prompt.md",
     promptArgs: {
       // A markdown list of branch names, one per line.

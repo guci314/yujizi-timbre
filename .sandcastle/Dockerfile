@@ -21,6 +21,17 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   && apt-get update && apt-get install -y gh \
   && rm -rf /var/lib/apt/lists/*
 
+# Node 22 + pnpm 11 for the web/ workspace (Vue + Vite + Vitest).
+# The gate `cd web && pnpm install --frozen-lockfile && pnpm test && pnpm build`
+# needs both; the Android toolchain above stays untouched.
+# pnpm 11 asks before running dependency build scripts, so web/pnpm-workspace.yaml
+# allows esbuild explicitly — without its postinstall, vite and vitest cannot run.
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+  && apt-get install -y nodejs \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g pnpm@11.1.3 \
+  && node --version && pnpm --version
+
 # Build-args for UID/GID alignment: sandcastle docker build-image
 # defaults these to the host user's UID/GID so image-built files
 # and bind-mounted files share an owner without runtime chown.

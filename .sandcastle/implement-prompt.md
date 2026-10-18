@@ -37,9 +37,11 @@ If applicable, use RGR to complete the task.
 3. REPEAT until done
 4. REFACTOR the code
 
-# FEEDBACK LOOPS (Gradle, per AGENTS.md)
+# FEEDBACK LOOPS (Gradle for Android, pnpm for web/, per AGENTS.md)
 
 Before committing, run the narrowest meaningful checks (everything happens in this sandbox):
+
+Android (`app/`, `core/`, `features/`):
 
 - Change in one module → `./gradlew :<moduleName>:testDebugUnitTest`
 - App-level change → `./gradlew :app:testFreeDebugUnitTest`
@@ -48,7 +50,13 @@ Before committing, run the narrowest meaningful checks (everything happens in th
 - First assemble may compile for several minutes — that is normal; wait, do not abort
 - Emulator / managed devices are unavailable in this sandbox — unit-test level only
 
-Docs-only changes: skip Gradle; verify md paths/links by reading them back.
+Web (`web/`):
+
+- Change in `web/` → `cd web && pnpm install --frozen-lockfile && pnpm test && pnpm build`
+- `pnpm build` runs `vue-tsc --noEmit` first, so a type error fails the gate
+- Run `pnpm test` from inside `web/`; never from the repository root
+
+Docs-only changes: skip both; verify md paths/links by reading them back.
 
 # COMMIT
 
