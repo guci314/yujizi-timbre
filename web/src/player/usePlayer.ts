@@ -16,6 +16,8 @@ export interface AudioLike {
   duration: number
   playbackRate: number
   paused: boolean
+  /** Set before the first `src`, so cached audio answers with byte ranges. */
+  crossOrigin: string | null
   play(): Promise<void> | void
   pause(): void
   addEventListener(type: string, listener: () => void): void
@@ -42,7 +44,20 @@ export interface PlayerState {
   close(): void
 }
 
-const defaultAudioFactory: AudioFactory = () => new Audio() as unknown as AudioLike
+/**
+ * Build the audio element.
+ *
+ * `crossOrigin` must be set before any `src`. Downloaded audio is served by the
+ * service worker through the Cache API, and a cached response only satisfies a
+ * ranged media request when the element asked in CORS mode — without this,
+ * seeking into downloaded audio fails. It is required even for same-origin
+ * sources.
+ */
+const defaultAudioFactory: AudioFactory = () => {
+  const audio = new Audio()
+  audio.crossOrigin = 'anonymous'
+  return audio as unknown as AudioLike
+}
 
 /**
  * A rejected `play()` is not always a fault. Browsers refuse playback no user

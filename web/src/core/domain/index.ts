@@ -60,3 +60,28 @@ export class NoAudioError extends Error {
     this.name = 'NoAudioError'
   }
 }
+
+/**
+ * One track kept on this device.
+ * The bytes live in Cache Storage; this record is the index over them, so the
+ * UI can list and total downloads without opening the cache.
+ */
+export interface DownloadedTrack {
+  /** Absolute track url, which is also the cache key. */
+  url: string
+  bookSlug: string
+  bookTitle: string
+  trackIndex: number
+  trackName: string
+  /** Bytes stored, or 0 when the server sent no length. */
+  sizeBytes: number
+  downloadedAt: number
+}
+
+/** Raised when the device has no room left for a download. */
+export class StorageFullError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StorageFullError'
+  }
+}

@@ -392,3 +392,153 @@ a {
 .top-nav__spacer {
   flex: 1;
 }
+
+/* Downloads */
+
+.chapter-list__head--actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chapter-list__buttons {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.error-banner--inline {
+  margin: 10px 16px;
+}
+
+.chapter-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.chapter-row .chapter-item {
+  border-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.chapter-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 12px;
+  flex: none;
+  font-size: 12px;
+}
+
+.chapter-row__stored {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.chapter-row__progress {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.storage-card__line {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.storage-card__line strong {
+  font-size: 22px;
+}
+
+.storage-card__hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.storage-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.storage-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.storage-meter__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.download-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.download-group__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 2px;
+  font-size: 14px;
+}
+
+.download-group__head .muted {
+  margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.download-all {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 2px;
+  font-size: 12px;
+}
+
+.download-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.download-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.download-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

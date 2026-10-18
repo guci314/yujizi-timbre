@@ -5,12 +5,15 @@ import { useBookDetail, useLibrary } from '../core/library'
 import { player } from '../player/shared'
 import { formatTime, PLAYBACK_RATES } from '../player/playback'
 import { addBookmark } from '../core/bookmarks'
+import { ensureDownloadsLoaded, useDownloads } from '../core/downloads-store'
+import { formatBytes } from '../core/format'
 
 const route = useRoute()
 const router = useRouter()
 const { books, loadBooks } = useLibrary()
 const { detail, loading, error, noAudio, load } = useBookDetail()
 const state = player()
+const downloads = useDownloads()
 const localError = ref<string>()
 
 const slug = computed(() => String(route.params.slug ?? ''))
@@ -18,9 +21,13 @@ const track = computed(() => detail.value?.tracks[state.trackIndex.value])
 const canNext = computed(() => state.trackIndex.value < (detail.value?.tracks.length ?? 0) - 1)
 const canPrevious = computed(() => state.trackIndex.value > 0)
 const isCurrentBook = computed(() => state.book.value?.slug === slug.value)
+const downloadedHere = computed(() => downloads.downloadedCount(slug.value))
+const allDownloaded = computed(
+  () => (detail.value?.tracks.length ?? 0) > 0 && downloadedHere.value >= (detail.value?.tracks.length ?? 0),
+)
 
 onMounted(async () => {
-  await loadBooks()
+  await Promise.all([loadBooks(), ensureDownloadsLoaded()])
   const book = books.value.find((candidate) => candidate.slug === slug.value)
   if (book === undefined) {
     localError.value = '找不到这本书'
@@ -106,9 +113,31 @@ async function addCurrentBookmark() {
       </div>
 
       <div class="chapter-list">
-        <p class="chapter-list__head">共 {{ detail.tracks.length }} 章</p>
+        <div class="chapter-list__head chapter-list__head--actions">
+          <span>共 {{ detail.tracks.length }} 章<template v-if="downloadedHere > 0"> · 已存 {{ downloadedHere }} 集</template></span>
+          <span class="chapter-list__buttons">
+            <button
+              class="link-button"
+              :disabled="downloads.busy.value || allDownloaded"
+              @click="downloads.saveBook(detail)"
+            >
+              {{ allDownloaded ? '已全部下载' : '下载整本' }}
+            </button>
+            <button
+              v-if="downloadedHere > 0"
+              class="link-button link-button--danger"
+              :disabled="downloads.busy.value"
+              @click="downloads.dropBook(detail.slug)"
+            >
+              清除本书
+            </button>
+          </span>
+        </div>
+
+        <p v-if="downloads.error.value" class="error-banner error-banner--inline">{{ downloads.error.value }}</p>
+
         <ul class="chapter-list__items">
-          <li v-for="(item, index) in detail.tracks" :key="item.url">
+          <li v-for="(item, index) in detail.tracks" :key="item.url" class="chapter-row">
             <button
               class="chapter-item"
               :aria-current="index === state.trackIndex.value"
@@ -117,9 +146,39 @@ async function addCurrentBookmark() {
               <span class="chapter-item__index">{{ index + 1 }}</span>
               <span>{{ item.name }}</span>
             </button>
+            <span class="chapter-row__actions">
+              <span v-if="downloads.progressFor(item.url)" class="chapter-row__progress">
+                {{ formatBytes(downloads.progressFor(item.url)!.received) }}
+                <template v-if="downloads.progressFor(item.url)!.total > 0">
+                  / {{ formatBytes(downloads.progressFor(item.url)!.total) }}
+                </template>
+              </span>
+              <span v-else-if="downloads.isDownloaded(item.url)" class="chapter-row__stored">
+                ✓ {{ formatBytes(downloads.recordFor(item.url)!.sizeBytes) }}
+              </span>
+              <button
+                v-if="downloads.isDownloaded(item.url)"
+                class="link-button link-button--danger"
+                :disabled="downloads.busy.value"
+                aria-label="删除这一集的下载"
+                @click="downloads.dropTrack(item.url)"
+              >
+                删除
+              </button>
+              <button
+                v-else
+                class="link-button"
+                :disabled="downloads.busy.value"
+                aria-label="下载这一集"
+                @click="downloads.saveTrack(detail, item, index)"
+              >
+                下载
+              </button>
+            </span>
           </li>
         </ul>
       </div>
     </template>
   </section>
 </template>
+

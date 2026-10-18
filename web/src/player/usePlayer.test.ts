@@ -15,6 +15,7 @@ function notAllowed(): Error {
 
 class FakeAudio implements AudioLike {
   src = ''
+  crossOrigin: string | null = null
   currentTime = 0
   duration = Number.NaN
   playbackRate = 1

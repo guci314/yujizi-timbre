@@ -1,9 +1,11 @@
-import type { Bookmark, Progress } from '../domain'
+import type { Bookmark, DownloadedTrack, Progress } from '../domain'
 
 const DB_NAME = 'timbre-web'
-const DB_VERSION = 1
+/** v2 adds the downloads store; the upgrade creates stores idempotently. */
+const DB_VERSION = 2
 const PROGRESS_STORE = 'progress'
 const BOOKMARK_STORE = 'bookmarks'
+const DOWNLOAD_STORE = 'downloads'
 
 let dbPromise: Promise<IDBDatabase> | undefined
 
@@ -17,6 +19,10 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(BOOKMARK_STORE)) {
         const store = db.createObjectStore(BOOKMARK_STORE, { keyPath: 'id' })
+        store.createIndex('bookSlug', 'bookSlug', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(DOWNLOAD_STORE)) {
+        const store = db.createObjectStore(DOWNLOAD_STORE, { keyPath: 'url' })
         store.createIndex('bookSlug', 'bookSlug', { unique: false })
       }
     }
@@ -85,6 +91,46 @@ export async function saveBookmark(bookmark: Bookmark): Promise<Bookmark> {
 
 export function deleteBookmark(id: string): Promise<undefined> {
   return against(BOOKMARK_STORE, 'readwrite', (store) => store.delete(id))
+}
+
+/* Downloads: metadata mirroring what the Cache Storage bucket holds. */
+
+export async function saveDownload(download: DownloadedTrack): Promise<DownloadedTrack> {
+  await against(DOWNLOAD_STORE, 'readwrite', (store) => store.put(download))
+  return download
+}
+
+/** Every download record, newest first. */
+export async function loadDownloads(): Promise<DownloadedTrack[]> {
+  const entries = await against<DownloadedTrack[]>(DOWNLOAD_STORE, 'readonly', (store) => store.getAll())
+  return entries.sort((left, right) => right.downloadedAt - left.downloadedAt)
+}
+
+/** Download records of one book, in track order. */
+export async function loadDownloadsForBook(bookSlug: string): Promise<DownloadedTrack[]> {
+  const db = await openDatabase()
+  const entries = await new Promise<DownloadedTrack[]>((resolve, reject) => {
+    const index = db.transaction(DOWNLOAD_STORE, 'readonly').objectStore(DOWNLOAD_STORE).index('bookSlug')
+    const request = index.getAll(bookSlug)
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('读取下载记录失败'))
+  })
+  return entries.sort((left, right) => left.trackIndex - right.trackIndex)
+}
+
+export function deleteDownloadRecord(url: string): Promise<undefined> {
+  return against(DOWNLOAD_STORE, 'readwrite', (store) => store.delete(url))
+}
+
+/** Forget every download record of one book. */
+export async function deleteDownloadRecordsForBook(bookSlug: string): Promise<void> {
+  const entries = await loadDownloadsForBook(bookSlug)
+  for (const entry of entries) await deleteDownloadRecord(entry.url)
+}
+
+/** Forget every download record. */
+export async function deleteAllDownloadRecords(): Promise<void> {
+  await against(DOWNLOAD_STORE, 'readwrite', (store) => store.clear())
 }
 
 /**

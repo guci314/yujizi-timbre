@@ -18,6 +18,7 @@ function openBook(slug: string) {
     <div class="top-nav">
       <h1 class="page-title">书架</h1>
       <span class="top-nav__spacer" />
+      <RouterLink class="link-button" :to="{ name: 'downloads' }">离线</RouterLink>
       <RouterLink class="link-button" :to="{ name: 'bookmarks' }">书签</RouterLink>
     </div>
 

@@ -9,10 +9,20 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.png'],
+      // injectManifest, not generateSW: serving downloaded audio needs the
+      // RangeRequests plugin, which the declarative generateSW config cannot
+      // express. src/service-worker.ts owns the caching rules.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'service-worker.ts',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+      },
       manifest: {
         name: 'Timbre 听书',
         short_name: '听书',
         description: '玉机子道长的音频',
+        lang: 'zh-Hans',
         theme_color: '#f4efe3',
         background_color: '#f4efe3',
         display: 'standalone',
@@ -23,11 +33,6 @@ export default defineConfig({
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
-      },
-      workbox: {
-        // Audio stays network-only: it is large and its availability is the site's concern.
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: 'index.html',
       },
     }),
   ],

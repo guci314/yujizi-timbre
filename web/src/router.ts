@@ -15,6 +15,11 @@ export const router = createRouter({
       component: () => import('./views/PlayerView.vue'),
     },
     {
+      path: '/downloads',
+      name: 'downloads',
+      component: () => import('./views/DownloadsView.vue'),
+    },
+    {
       path: '/bookmarks',
       name: 'bookmarks',
       component: () => import('./views/BookmarksView.vue'),
