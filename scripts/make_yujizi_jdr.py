@@ -24,7 +24,7 @@ OUT_JDR = os.path.join(OUT_DIR, "yujizi.jdr")
 MANIFEST = {
     "id": "org.yujizi.source",
     "name": "玉机子",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "玉机子",
     "description": "玉机子道长讲经音频：十部经目，可整本缓存离线听",
     "allowInsecure": False,
