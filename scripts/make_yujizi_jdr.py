@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """把 AntennaPod 版玉机子清单转成 Timbre 的 .jdr 接口源。
 
-- 9 个专辑 → 9 本书；曲目 → 章节；播放直链 = baseUrl + 相对路径
+- 10 个专辑 → 10 本书；曲目 → 章节；播放直链 = baseUrl + 相对路径
 - 数据全部静态内联进脚本，播放时不需要任何网络请求（除了音频本身）
 """
 import json
@@ -26,7 +26,7 @@ MANIFEST = {
     "name": "玉机子",
     "version": "1.0.0",
     "author": "玉机子",
-    "description": "玉机子道长讲经音频：九部经目，可整本缓存离线听",
+    "description": "玉机子道长讲经音频：十部经目，可整本缓存离线听",
     "allowInsecure": False,
     "sources": [
         {
