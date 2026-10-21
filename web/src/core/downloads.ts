@@ -12,6 +12,8 @@ import {
 
 /** Progress of one download, in bytes. `total` is 0 when the server sent no length. */
 export interface DownloadProgress {
+  /** The track this progress belongs to; a book download runs several at once. */
+  url: string
   received: number
   total: number
 }
@@ -66,13 +68,13 @@ export async function downloadTrack(
       if (done) break
       chunks.push(value)
       received += value.length
-      options.onProgress?.({ received, total: declaredLength })
+      options.onProgress?.({ url: track.url, received, total: declaredLength })
     }
   } else {
     const buffer = new Uint8Array(await response.arrayBuffer())
     chunks.push(buffer)
     received = buffer.length
-    options.onProgress?.({ received, total: declaredLength })
+    options.onProgress?.({ url: track.url, received, total: declaredLength })
   }
 
   const record: DownloadedTrack = {
@@ -100,33 +102,59 @@ export async function downloadTrack(
   return record
 }
 
+/** How many tracks of one book are fetched at the same time. */
+const BOOK_DOWNLOAD_CONCURRENCY = 3
+
 /**
  * Download every track of a book that is not stored yet.
- * Stops at the first failure and reports what did land, so the caller can show
- * partial success rather than pretending the whole book arrived.
+ *
+ * Tracks run a few at a time rather than one after another: a single 20 MB
+ * episode over a slow link takes minutes, and waiting for it before starting
+ * the next one made a whole book feel serial. The concurrency is bounded so a
+ * full book does not open dozens of sockets at once.
+ *
+ * One failed track does not abandon the rest: the failure is reported and the
+ * remaining tracks still get their chance, so a single bad url cannot leave a
+ * book half-downloaded with no way forward.
  */
 export async function downloadBook(
   book: BookDetail,
   options: DownloadOptions & { onTrack?: (index: number, record: DownloadedTrack) => void } = {},
 ): Promise<{ downloaded: number; failed: number; error?: Error }> {
   const already = new Set((await loadDownloadsForBook(book.slug)).map((entry) => entry.url))
+  const pending = book.tracks
+    .map((track, index) => ({ track, index }))
+    .filter(({ track }) => !already.has(track.url))
+
   let downloaded = 0
   let failed = 0
   let error: Error | undefined
 
-  for (const [index, track] of book.tracks.entries()) {
-    if (already.has(track.url)) continue
-    if (options.signal?.aborted === true) break
-    try {
-      const record = await downloadTrack(book, track, index, options)
-      downloaded += 1
-      options.onTrack?.(index, record)
-    } catch (cause) {
-      failed += 1
-      error = cause instanceof Error ? cause : new Error(String(cause))
-      break
+  // A shared cursor over `pending`, so each worker takes the next track.
+  let cursor = 0
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      if (options.signal?.aborted === true) return
+      const position = cursor
+      cursor += 1
+      if (position >= pending.length) return
+      const { track, index } = pending[position]
+      try {
+        const record = await downloadTrack(book, track, index, options)
+        downloaded += 1
+        options.onTrack?.(index, record)
+      } catch (cause) {
+        failed += 1
+        if (error === undefined) {
+          error = cause instanceof Error ? cause : new Error(String(cause))
+        }
+      }
     }
   }
+
+  const workers = Math.min(BOOK_DOWNLOAD_CONCURRENCY, Math.max(pending.length, 1))
+  await Promise.all(Array.from({ length: workers }, () => worker()))
+
   return { downloaded, failed, ...(error === undefined ? {} : { error }) }
 }
 

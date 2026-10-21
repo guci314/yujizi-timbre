@@ -118,7 +118,7 @@ async function addCurrentBookmark() {
           <span class="chapter-list__buttons">
             <button
               class="link-button"
-              :disabled="downloads.busy.value || allDownloaded"
+              :disabled="downloads.bookBusy.value || allDownloaded"
               @click="downloads.saveBook(detail)"
             >
               {{ allDownloaded ? '已全部下载' : '下载整本' }}
@@ -159,7 +159,7 @@ async function addCurrentBookmark() {
               <button
                 v-if="downloads.isDownloaded(item.url)"
                 class="link-button link-button--danger"
-                :disabled="downloads.busy.value"
+                :disabled="downloads.isActive(item.url)"
                 aria-label="删除这一集的下载"
                 @click="downloads.dropTrack(item.url)"
               >
@@ -168,11 +168,11 @@ async function addCurrentBookmark() {
               <button
                 v-else
                 class="link-button"
-                :disabled="downloads.busy.value"
+                :disabled="downloads.isActive(item.url)"
                 aria-label="下载这一集"
                 @click="downloads.saveTrack(detail, item, index)"
               >
-                下载
+                {{ downloads.isActive(item.url) ? '下载中…' : '下载' }}
               </button>
             </span>
           </li>

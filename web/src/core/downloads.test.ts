@@ -99,9 +99,10 @@ describe('downloadTrack', () => {
     serveBytes(4096)
     const seen: number[] = []
     await downloadTrack(book, book.tracks[0], 0, {
-      onProgress: ({ received, total }) => {
+      onProgress: ({ received, total, url }) => {
         seen.push(received)
         expect(total).toBe(4096)
+        expect(url).toBe(book.tracks[0].url)
       },
     })
     expect(seen.at(-1)).toBe(4096)
@@ -137,22 +138,53 @@ describe('downloadBook', () => {
     expect(second.downloaded).toBe(0)
   })
 
-  it('stops at the first failure and reports what landed', async () => {
+  it('reports a failure without hiding what did land', async () => {
     serveBytes(512)
-    let calls = 0
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => {
-        calls += 1
-        if (calls === 2) return new Response('boom', { status: 500 })
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/2.m4a')) return new Response('boom', { status: 500 })
         return new Response(new Uint8Array(512), { status: 200, headers: { 'content-length': '512' } })
       }),
     )
     const result = await downloadBook(book)
-    expect(result.downloaded).toBe(1)
     expect(result.failed).toBe(1)
+    expect(result.downloaded).toBe(2)
     expect(result.error).toBeInstanceOf(Error)
-    expect(await listDownloadsForBook('ddj')).toHaveLength(1)
+    expect(await listDownloadsForBook('ddj')).toHaveLength(2)
+  })
+
+  it('keeps going after a failure instead of abandoning the rest', async () => {
+    serveBytes(512)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/1.m4a')) return new Response('boom', { status: 500 })
+        return new Response(new Uint8Array(512), { status: 200, headers: { 'content-length': '512' } })
+      }),
+    )
+    const result = await downloadBook(book)
+    expect(result.failed).toBe(1)
+    expect(result.downloaded).toBe(2)
+    expect(await listDownloadsForBook('ddj')).toHaveLength(2)
+  })
+
+  it('fetches several tracks at the same time', async () => {
+    let inFlight = 0
+    let peak = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        inFlight += 1
+        peak = Math.max(peak, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        inFlight -= 1
+        return new Response(new Uint8Array(512), { status: 200, headers: { 'content-length': '512' } })
+      }),
+    )
+    const result = await downloadBook(book)
+    expect(result.downloaded).toBe(3)
+    expect(peak).toBeGreaterThan(1)
   })
 
   it('halts when the caller aborts', async () => {

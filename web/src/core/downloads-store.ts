@@ -16,10 +16,13 @@ import { formatBytes } from './format'
 /** Download records keyed by track url, shared across views. */
 const records = shallowRef<Map<string, DownloadedTrack>>(new Map())
 const usage = ref<StorageUsage>()
-const busy = ref(false)
+/** Per-track download progress, keyed by track url. Several tracks may be in flight. */
+const progress = ref<Map<string, { received: number; total: number }>>(new Map())
+/** Tracks currently being downloaded, so the UI can disable just those. */
+const active = ref<Set<string>>(new Set())
+/** A book download is running; its tracks report progress through `progress`. */
+const bookBusy = ref(false)
 const error = ref<string>()
-/** Progress of the track currently downloading, if any. */
-const progress = ref<{ url: string; received: number; total: number }>()
 /** Persistence is advisory; a refusal is recorded but never blocks. */
 const persisted = ref<boolean>()
 
@@ -45,6 +48,8 @@ export function useDownloads() {
     if (usage.value === undefined) return undefined
     return `已用 ${formatBytes(usage.value.usage)}${usage.value.quota > 0 ? ` / 可用约 ${formatBytes(usage.value.quota)}` : ''}`
   })
+  /** True while anything is downloading; used for the destructive actions only. */
+  const busy = computed(() => active.value.size > 0 || bookBusy.value)
 
   function isDownloaded(url: string): boolean {
     return records.value.has(url)
@@ -59,35 +64,50 @@ export function useDownloads() {
   }
 
   function progressFor(url: string): { received: number; total: number } | undefined {
-    return progress.value?.url === url ? progress.value : undefined
+    return progress.value.get(url)
+  }
+
+  /** True while this one track is downloading. */
+  function isActive(url: string): boolean {
+    return active.value.has(url)
   }
 
   async function saveTrack(book: BookDetail, track: Track, index: number): Promise<void> {
-    busy.value = true
+    if (active.value.has(track.url)) return
     error.value = undefined
-    progress.value = { url: track.url, received: 0, total: 0 }
+    active.value = new Set(active.value).add(track.url)
+    progress.value = new Map(progress.value).set(track.url, { received: 0, total: 0 })
     try {
       await downloadTrack(book, track, index, {
         onProgress: (value) => {
-          progress.value = { url: track.url, received: value.received, total: value.total }
+          const next = new Map(progress.value)
+          next.set(value.url, { received: value.received, total: value.total })
+          progress.value = next
         },
       })
       await refresh()
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : '下载失败'
     } finally {
-      progress.value = undefined
-      busy.value = false
+      const nextActive = new Set(active.value)
+      nextActive.delete(track.url)
+      active.value = nextActive
+      const nextProgress = new Map(progress.value)
+      nextProgress.delete(track.url)
+      progress.value = nextProgress
     }
   }
 
   async function saveBook(book: BookDetail): Promise<void> {
-    busy.value = true
+    if (bookBusy.value) return
+    bookBusy.value = true
     error.value = undefined
     try {
       const result = await downloadBook(book, {
         onProgress: (value) => {
-          progress.value = { url: '', received: value.received, total: value.total }
+          const next = new Map(progress.value)
+          next.set(value.url, { received: value.received, total: value.total })
+          progress.value = next
         },
       })
       await refresh()
@@ -95,39 +115,24 @@ export function useDownloads() {
         error.value = `${result.error.message}（已下载 ${result.downloaded} 集）`
       }
     } finally {
-      progress.value = undefined
-      busy.value = false
+      progress.value = new Map()
+      bookBusy.value = false
     }
   }
 
   async function dropTrack(url: string): Promise<void> {
-    busy.value = true
-    try {
-      await removeTrack(url)
-      await refresh()
-    } finally {
-      busy.value = false
-    }
+    await removeTrack(url)
+    await refresh()
   }
 
   async function dropBook(bookSlug: string): Promise<void> {
-    busy.value = true
-    try {
-      await removeBookDownloads(bookSlug)
-      await refresh()
-    } finally {
-      busy.value = false
-    }
+    await removeBookDownloads(bookSlug)
+    await refresh()
   }
 
   async function dropAll(): Promise<void> {
-    busy.value = true
-    try {
-      await removeAllDownloads()
-      await refresh()
-    } finally {
-      busy.value = false
-    }
+    await removeAllDownloads()
+    await refresh()
   }
 
   /** Ask once for persistent storage, which exempts the origin from Safari's cleanup. */
@@ -142,9 +147,11 @@ export function useDownloads() {
     usage,
     usageLabel,
     busy,
+    bookBusy,
     error,
     persisted,
     isDownloaded,
+    isActive,
     recordFor,
     downloadedCount,
     progressFor,
@@ -162,7 +169,9 @@ export function useDownloads() {
 export function resetDownloadsState(): void {
   records.value = new Map()
   usage.value = undefined
-  progress.value = undefined
+  progress.value = new Map()
+  active.value = new Set()
+  bookBusy.value = false
   persisted.value = undefined
   error.value = undefined
   loaded = false
