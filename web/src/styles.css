@@ -206,6 +206,13 @@ a {
   cursor: default;
 }
 
+.chapter-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
 .rates {
   display: flex;
   flex-wrap: wrap;

@@ -211,6 +211,81 @@ describe('transport', () => {
   })
 })
 
+describe('skip', () => {
+  it('jumps 30 seconds forward', () => {
+    const player = playerInScope()
+    player.seek(100)
+    player.skipForward(30)
+    expect(audio.currentTime).toBe(130)
+    expect(player.currentTime.value).toBe(130)
+  })
+
+  it('jumps 30 seconds back', () => {
+    const player = playerInScope()
+    player.seek(100)
+    player.skipBack(30)
+    expect(audio.currentTime).toBe(70)
+    expect(player.currentTime.value).toBe(70)
+  })
+
+  it('does not go before the start of the track', () => {
+    const player = playerInScope()
+    player.seek(10)
+    player.skipBack(30)
+    expect(audio.currentTime).toBe(0)
+  })
+
+  it('does not go past the end of the track', () => {
+    const player = playerInScope()
+    player.seek(590)
+    audio.loadMetadata(600)
+    player.skipForward(30)
+    expect(audio.currentTime).toBe(600)
+  })
+
+  it('stays in the same chapter instead of switching tracks', async () => {
+    const player = playerInScope()
+    await player.open(book, 1)
+    player.seek(100)
+    player.skipBack(30)
+    expect(player.trackIndex.value).toBe(1)
+    expect(audio.src).toBe('https://www.yujizi.org/2.m4a')
+  })
+
+  it('maps the lock-screen seek buttons to the 30 second jumps', () => {
+    const handlers = new Map<string, () => void>()
+    const original = Object.getOwnPropertyDescriptor(navigator, 'mediaSession')
+    Object.defineProperty(navigator, 'mediaSession', {
+      configurable: true,
+      value: {
+        metadata: null,
+        playbackState: 'none',
+        setActionHandler: (action: string, handler: (() => void) | null) => {
+          if (handler === null) handlers.delete(action)
+          else handlers.set(action, handler)
+        },
+      },
+    })
+
+    try {
+      const player = playerInScope()
+      player.seek(100)
+
+      handlers.get('seekbackward')?.()
+      expect(player.currentTime.value).toBe(70)
+
+      handlers.get('seekforward')?.()
+      expect(player.currentTime.value).toBe(100)
+    } finally {
+      if (original === undefined) {
+        Reflect.deleteProperty(navigator, 'mediaSession')
+      } else {
+        Object.defineProperty(navigator, 'mediaSession', original)
+      }
+    }
+  })
+})
+
 describe('persistence', () => {
   it('saves progress on a throttled timeupdate', async () => {
     const player = playerInScope()

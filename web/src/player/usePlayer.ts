@@ -7,8 +7,12 @@ import {
   previousIndex,
   PROGRESS_SAVE_INTERVAL_MS,
   resumePosition,
+  seekTarget,
 } from './playback'
 import { sleepRemainingSeconds, type SleepTimerOption } from './sleep'
+
+/** Seconds a skip button jumps. The Android player uses the same 30. */
+export const SKIP_SECONDS = 30
 
 /** The slice of HTMLAudioElement the player depends on, so tests can fake it. */
 export interface AudioLike {
@@ -43,6 +47,10 @@ export interface PlayerState {
   toggle(): Promise<void>
   playTrack(index: number): Promise<void>
   seek(seconds: number): void
+  /** Jump `seconds` forward inside the current chapter. */
+  skipForward(seconds: number): void
+  /** Jump `seconds` back inside the current chapter. */
+  skipBack(seconds: number): void
   setRate(value: number): void
   next(): Promise<void>
   previous(): Promise<void>
@@ -192,6 +200,26 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
     currentTime.value = seconds
   }
 
+  /**
+   * Jump forward or backward by `delta` seconds, staying in the same chapter.
+   *
+   * The skip is a seek inside the current track, not a track change: the
+   * Android app's player has offered ±30s since long before the browser
+   * version existed, and the two should behave the same.
+   */
+  function skip(delta: number): void {
+    const end = Number.isFinite(audio.duration) ? audio.duration : undefined
+    seek(seekTarget(audio.currentTime, delta, end))
+  }
+
+  function skipForward(seconds: number): void {
+    skip(seconds)
+  }
+
+  function skipBack(seconds: number): void {
+    skip(-seconds)
+  }
+
   function setRate(value: number): void {
     rate.value = value
     audio.playbackRate = value
@@ -282,6 +310,29 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
     session.playbackState = isPlaying.value ? 'playing' : 'paused'
   }
 
+  /**
+   * Wire the lock-screen panel's seek buttons to the 30 second jumps.
+   *
+   * The Android app's player has offered ±30s for a long time, and the
+   * browser version should not ask the listener to use the track list to
+   * rewind thirty seconds.
+   */
+  function registerMediaSessionActions(): void {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    const session = navigator.mediaSession
+    const actions: [MediaSessionAction, () => void][] = [
+      ['seekbackward', () => skipBack(SKIP_SECONDS)],
+      ['seekforward', () => skipForward(SKIP_SECONDS)],
+    ]
+    for (const [action, handler] of actions) {
+      try {
+        session.setActionHandler(action, handler)
+      } catch {
+        // Not every platform implements every action; ignore the ones it lacks.
+      }
+    }
+  }
+
   const onTimeUpdate = () => {
     currentTime.value = audio.currentTime
     void persist()
@@ -329,6 +380,7 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
   audio.addEventListener('pause', onPause)
   audio.addEventListener('error', onError)
   audio.addEventListener('ended', onEnded)
+  registerMediaSessionActions()
 
   onScopeDispose(() => {
     audio.removeEventListener('timeupdate', onTimeUpdate)
@@ -357,6 +409,8 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
     toggle,
     playTrack,
     seek,
+    skipForward,
+    skipBack,
     setRate,
     next,
     previous,

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formatTime, nextIndex, nowPlayingTitle, previousIndex, resumePosition } from './playback'
+import {
+  formatTime,
+  nextIndex,
+  nowPlayingTitle,
+  previousIndex,
+  resumePosition,
+  seekTarget,
+} from './playback'
 
 describe('formatTime', () => {
   it('formats under an hour', () => {
@@ -82,5 +89,27 @@ describe('nowPlayingTitle', () => {
 
   it('falls back to the book title for a missing chapter', () => {
     expect(nowPlayingTitle(book, 9)).toBe('道德经')
+  })
+})
+
+describe('seekTarget', () => {
+  it('moves 30 seconds forward', () => {
+    expect(seekTarget(100, 30)).toBe(130)
+  })
+
+  it('moves 30 seconds back', () => {
+    expect(seekTarget(100, -30)).toBe(70)
+  })
+
+  it('stops at the start instead of going negative', () => {
+    expect(seekTarget(10, -30)).toBe(0)
+  })
+
+  it('stops at the end instead of running past it', () => {
+    expect(seekTarget(580, 30, 600)).toBe(600)
+  })
+
+  it('keeps the position when the duration is unknown', () => {
+    expect(seekTarget(100, 30, Number.NaN)).toBe(130)
   })
 })

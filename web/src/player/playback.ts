@@ -40,6 +40,21 @@ export function previousIndex(current: number): number | undefined {
 }
 
 /**
+ * The position to seek to when jumping by `delta` seconds.
+ *
+ * Clamps to the start of the track and to its end, so a jump never lands
+ * outside the audio. A known duration is only used for the upper bound; an
+ * unknown one leaves the forward jump unbounded.
+ */
+export function seekTarget(current: number, delta: number, duration?: number): number {
+  const target = current + delta
+  if (target < 0) return 0
+  const end = duration ?? Number.NaN
+  if (Number.isFinite(end) && end > 0 && target > end) return end
+  return target
+}
+
+/**
  * A track label for the OS media notification.
  * Falls back to the book title when the chapter has no name.
  */

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBookDetail, useLibrary } from '../core/library'
 import { player } from '../player/shared'
+import { SKIP_SECONDS } from '../player/usePlayer'
 import { formatTime, PLAYBACK_RATES } from '../player/playback'
 import { addBookmark } from '../core/bookmarks'
 import { ensureDownloadsLoaded, useDownloads } from '../core/downloads-store'
@@ -93,11 +94,30 @@ async function addCurrentBookmark() {
         </div>
 
         <div class="controls">
-          <button class="control-button" :disabled="!canPrevious" aria-label="上一章" @click="state.previous()">⏮</button>
+          <button
+            class="control-button"
+            data-testid="skip-back"
+            aria-label="后退 30 秒"
+            @click="state.skipBack(SKIP_SECONDS)"
+          >
+            ⟲
+          </button>
           <button class="control-button control-button--primary" aria-label="播放或暂停" @click="state.toggle()">
             {{ state.isPlaying.value ? '⏸' : '▶' }}
           </button>
-          <button class="control-button" :disabled="!canNext" aria-label="下一章" @click="state.next()">⏭</button>
+          <button
+            class="control-button"
+            data-testid="skip-forward"
+            aria-label="前进 30 秒"
+            @click="state.skipForward(SKIP_SECONDS)"
+          >
+            ⟳
+          </button>
+        </div>
+
+        <div class="chapter-controls">
+          <button class="link-button" :disabled="!canPrevious" @click="state.previous()">上一章</button>
+          <button class="link-button" :disabled="!canNext" @click="state.next()">下一章</button>
         </div>
 
         <div class="rates">

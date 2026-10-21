@@ -54,4 +54,31 @@ describe('PlayerView', () => {
     expect(state.sleepTimer.value).toBeDefined()
     expect(state.sleepRemaining.value).toBe(5 * 60)
   })
+
+  it('offers a 30 second jump on each side of the play button', async () => {
+    resetDownloadsState()
+    const wrapper = mount(PlayerView)
+    await wrapper.vm.$nextTick()
+
+    const back = wrapper.find('[data-testid="skip-back"]')
+    const forward = wrapper.find('[data-testid="skip-forward"]')
+    expect(back.exists()).toBe(true)
+    expect(forward.exists()).toBe(true)
+    expect(back.attributes('aria-label')).toContain('30')
+    expect(forward.attributes('aria-label')).toContain('30')
+  })
+
+  it('jumps 30 seconds when the buttons are pressed', async () => {
+    resetDownloadsState()
+    const state = player()
+    const wrapper = mount(PlayerView)
+    await wrapper.vm.$nextTick()
+
+    state.seek(100)
+    await wrapper.find('[data-testid="skip-back"]').trigger('click')
+    expect(state.currentTime.value).toBe(70)
+
+    await wrapper.find('[data-testid="skip-forward"]').trigger('click')
+    expect(state.currentTime.value).toBe(100)
+  })
 })
