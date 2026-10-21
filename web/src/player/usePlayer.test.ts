@@ -272,3 +272,119 @@ describe('auto advance', () => {
     })
   })
 })
+
+describe('sleep timer', () => {
+  // Fake timers are enabled only here: the other suites rely on real timers
+  // for `vi.waitFor`, which does not advance a fake clock. `setImmediate` and
+  // `queueMicrotask` stay real, because fake-indexeddb schedules its own work
+  // through them and would otherwise never settle.
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('stops playback when the timer runs out', async () => {
+    const player = playerInScope()
+    await player.open(book)
+    await player.toggle()
+    expect(player.isPlaying.value).toBe(true)
+
+    player.setSleepTimer(1)
+    expect(player.sleepRemaining.value).toBeGreaterThan(0)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(player.isPlaying.value).toBe(false)
+  })
+
+  it('keeps playing while the timer has not run out', async () => {
+    const player = playerInScope()
+    await player.open(book)
+    await player.toggle()
+
+    player.setSleepTimer(10)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(player.isPlaying.value).toBe(true)
+  })
+
+  it('cancels the timer when asked to', async () => {
+    const player = playerInScope()
+    await player.open(book)
+    await player.toggle()
+
+    player.setSleepTimer(5)
+    player.clearSleepTimer()
+    expect(player.sleepRemaining.value).toBeUndefined()
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(player.isPlaying.value).toBe(true)
+  })
+
+  it('stops at the end of the current chapter', async () => {
+    const player = playerInScope()
+    await player.open(book)
+    await player.toggle()
+
+    player.setSleepTimer({ kind: 'end-of-chapter', minutes: 0, label: '本章结束' })
+    audio.emit('ended')
+    await vi.waitFor(() => {
+      expect(player.isPlaying.value).toBe(false)
+    })
+    // The chapter must not advance to the next one.
+    expect(player.trackIndex.value).toBe(0)
+  })
+
+  it('does not roll on to the next chapter after the timer stopped', async () => {
+    const player = playerInScope()
+    await player.open(book)
+    await player.toggle()
+
+    player.setSleepTimer(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(player.isPlaying.value).toBe(false)
+
+    // A late `ended` event must not restart the chain.
+    audio.emit('ended')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(player.trackIndex.value).toBe(0)
+    expect(player.isPlaying.value).toBe(false)
+  })
+
+  it('keeps the timer when the listener pauses and resumes', async () => {
+    const player = playerInScope()
+    await player.open(book)
+    await player.toggle()
+
+    player.setSleepTimer(10)
+    await player.toggle()
+    expect(player.isPlaying.value).toBe(false)
+    expect(player.sleepRemaining.value).toBe(10 * 60)
+
+    await player.toggle()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(player.isPlaying.value).toBe(false)
+  })
+
+  it('lets the listener start again after the timer stopped', async () => {
+    const player = playerInScope()
+    await player.open(book)
+    await player.toggle()
+
+    player.setSleepTimer(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(player.isPlaying.value).toBe(false)
+
+    await player.toggle()
+    expect(player.isPlaying.value).toBe(true)
+
+    // The chain must work again: a chapter that ends now rolls on.
+    audio.emit('ended')
+    await vi.waitFor(() => {
+      expect(player.trackIndex.value).toBe(1)
+    })
+  })
+})

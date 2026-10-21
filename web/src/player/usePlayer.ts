@@ -8,6 +8,7 @@ import {
   PROGRESS_SAVE_INTERVAL_MS,
   resumePosition,
 } from './playback'
+import { sleepRemainingSeconds, type SleepTimerOption } from './sleep'
 
 /** The slice of HTMLAudioElement the player depends on, so tests can fake it. */
 export interface AudioLike {
@@ -34,6 +35,10 @@ export interface PlayerState {
   duration: Ref<number>
   rate: Ref<number>
   error: Ref<string | undefined>
+  /** Seconds left on the sleep timer; undefined when no timer runs. */
+  sleepRemaining: Ref<number | undefined>
+  /** The sleep timer in force, if any. */
+  sleepTimer: Ref<SleepTimerOption | undefined>
   open(book: BookDetail, trackIndex?: number): Promise<void>
   toggle(): Promise<void>
   playTrack(index: number): Promise<void>
@@ -42,6 +47,8 @@ export interface PlayerState {
   next(): Promise<void>
   previous(): Promise<void>
   close(): void
+  setSleepTimer(option: SleepTimerOption | number): void
+  clearSleepTimer(): void
 }
 
 /**
@@ -77,11 +84,20 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
   const duration = ref(0)
   const rate = ref(1)
   const error = ref<string>()
+  /** Seconds left on the sleep timer; undefined when no timer runs. */
+  const sleepRemaining = ref<number | undefined>()
+  /** The sleep timer in force, if any. */
+  const sleepTimer = ref<SleepTimerOption | undefined>()
 
   const audio = createAudio()
   let lastSavedAt = 0
   /** A seek requested before the new source reported its metadata. */
   let pendingSeek: number | undefined
+  /** The moment a minute-based sleep timer stops playback. */
+  let sleepDeadline = 0
+  let sleepTicker: ReturnType<typeof setInterval> | undefined
+  /** True once a sleep timer stopped playback, so the chain does not roll on. */
+  let sleepStopped = false
 
   async function persist(force = false): Promise<void> {
     const current = book.value
@@ -161,6 +177,8 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
       await persist(true)
       return
     }
+    // Starting again lifts the stop a sleep timer left behind.
+    sleepStopped = false
     try {
       await audio.play()
       error.value = undefined
@@ -193,6 +211,63 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
     audio.pause()
     isPlaying.value = false
     book.value = undefined
+  }
+
+  /** Stop playback and remember where the listener was. */
+  function stopForSleep(): void {
+    audio.pause()
+    isPlaying.value = false
+    // A `ended` event may still arrive after the timer stopped; remember that
+    // the chain must not roll on to the next chapter.
+    sleepStopped = true
+    void persist(true)
+  }
+
+  /** Stop the ticker and forget any pending sleep timer. */
+  function stopSleepTicker(): void {
+    if (sleepTicker !== undefined) {
+      clearInterval(sleepTicker)
+      sleepTicker = undefined
+    }
+  }
+
+  /**
+   * Start a sleep timer.
+   *
+   * A minute-based timer stops playback at a fixed moment. `end-of-chapter`
+   * waits for the current chapter to finish, which is the gentlest way to stop
+   * mid-recitation.
+   */
+  function setSleepTimer(option: SleepTimerOption | number): void {
+    const chosen: SleepTimerOption =
+      typeof option === 'number' ? { kind: 'minutes', minutes: option, label: `${option} 分钟` } : option
+
+    clearSleepTimer()
+    sleepTimer.value = chosen
+
+    if (chosen.kind === 'end-of-chapter') {
+      // No deadline: the `ended` handler stops playback instead.
+      sleepRemaining.value = undefined
+      return
+    }
+
+    sleepDeadline = Date.now() + chosen.minutes * 60_000
+    sleepRemaining.value = chosen.minutes * 60
+    sleepTicker = setInterval(() => {
+      const left = sleepRemainingSeconds(sleepDeadline, Date.now())
+      sleepRemaining.value = left
+      if (left <= 0) {
+        stopForSleep()
+        clearSleepTimer()
+      }
+    }, 1_000)
+  }
+
+  /** Cancel the sleep timer, leaving playback untouched. */
+  function clearSleepTimer(): void {
+    stopSleepTicker()
+    sleepTimer.value = undefined
+    sleepRemaining.value = undefined
   }
 
   function updateMediaSession(): void {
@@ -236,6 +311,14 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
   }
   const onEnded = () => {
     void persist(true)
+    // A sleep timer set to "end of chapter" stops here instead of rolling on.
+    if (sleepTimer.value?.kind === 'end-of-chapter') {
+      stopForSleep()
+      clearSleepTimer()
+      return
+    }
+    // A late `ended` after the timer stopped must not restart the chain.
+    if (sleepStopped) return
     void next()
   }
 
@@ -255,6 +338,7 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
     audio.removeEventListener('pause', onPause)
     audio.removeEventListener('error', onError)
     audio.removeEventListener('ended', onEnded)
+    stopSleepTicker()
     audio.pause()
     void persist(true)
   })
@@ -267,6 +351,8 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
     duration,
     rate,
     error,
+    sleepRemaining,
+    sleepTimer,
     open,
     toggle,
     playTrack,
@@ -275,5 +361,7 @@ export function usePlayer(createAudio: AudioFactory = defaultAudioFactory): Play
     next,
     previous,
     close,
+    setSleepTimer,
+    clearSleepTimer,
   }
 }

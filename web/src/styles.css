@@ -228,6 +228,66 @@ a {
   color: var(--bg);
 }
 
+/* Sleep timer */
+
+.sleep-timer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sleep-timer {
+  position: relative;
+}
+
+.sleep-timer__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.sleep-timer__option {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 14px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+}
+
+.sleep-timer__option:hover {
+  background: var(--surface);
+}
+
+.sleep-timer__option[aria-pressed='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sleep-timer__option--danger {
+  color: var(--danger);
+  border-top: 1px solid var(--border);
+}
+
+.sleep-timer-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* Chapter list */
 
 .chapter-list {

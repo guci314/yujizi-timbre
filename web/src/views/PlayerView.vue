@@ -7,6 +7,7 @@ import { formatTime, PLAYBACK_RATES } from '../player/playback'
 import { addBookmark } from '../core/bookmarks'
 import { ensureDownloadsLoaded, useDownloads } from '../core/downloads-store'
 import { formatBytes } from '../core/format'
+import SleepTimerButton from '../components/SleepTimerButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -109,6 +110,18 @@ async function addCurrentBookmark() {
           >
             {{ rate }}×
           </button>
+        </div>
+
+        <div class="sleep-timer-row">
+          <SleepTimerButton
+            :remaining="state.sleepRemaining.value"
+            :active="state.sleepTimer.value"
+            :on-start="state.setSleepTimer"
+            :on-cancel="state.clearSleepTimer"
+          />
+          <p v-if="state.sleepTimer.value" class="sleep-timer-note">
+            {{ state.sleepTimer.value.label }}后自动停止播放
+          </p>
         </div>
       </div>
 
