@@ -1,19 +1,18 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { SLEEP_TIMER_OPTIONS, type SleepTimerOption } from '../player/sleep'
+import { SLEEP_TIMER_OPTIONS, type SleepTimerOption } from '../pim/player-model'
 
 const props = defineProps<{
-  /** Seconds left on the running timer; undefined when no timer runs. */
+  /** Seconds left on a minute timer; undefined when no minute timer runs. */
   remaining: number | undefined
-  /** The timer in force, if any. */
-  active: SleepTimerOption | undefined
+  /** Extra label for modes without a countdown, e.g. 本章结束. */
+  label: string | undefined
   onStart: (option: SleepTimerOption) => void
   onCancel: () => void
 }>()
 
 const open = ref(false)
 
-/** `m:ss` for the time left on the running timer. */
 function formatRemaining(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds))
   const minutes = Math.floor(total / 60)
@@ -34,13 +33,9 @@ function cancel(): void {
 
 <template>
   <div class="sleep-timer">
-    <button
-      class="link-button"
-      data-testid="sleep-timer-toggle"
-      :aria-expanded="open"
-      @click="open = !open"
-    >
+    <button class="link-button" data-testid="sleep-timer-toggle" :aria-expanded="open" @click="open = !open">
       <template v-if="remaining !== undefined">🌙 {{ formatRemaining(remaining) }}</template>
+      <template v-else-if="label !== undefined">🌙 {{ label }}</template>
       <template v-else>🌙 睡眠定时</template>
     </button>
 
@@ -49,13 +44,13 @@ function cancel(): void {
         v-for="option in SLEEP_TIMER_OPTIONS"
         :key="option.label"
         class="sleep-timer__option"
-        :aria-pressed="active?.label === option.label"
+        :aria-pressed="label === option.label || (option.kind === 'minutes' && remaining !== undefined && option.label === `${Math.ceil((remaining ?? 0) / 60)} 分钟`)"
         @click="choose(option)"
       >
         {{ option.label }}
       </button>
       <button
-        v-if="remaining !== undefined"
+        v-if="remaining !== undefined || label !== undefined"
         class="sleep-timer__option sleep-timer__option--danger"
         data-testid="sleep-timer-cancel"
         @click="cancel"

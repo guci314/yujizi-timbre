@@ -1,12 +1,30 @@
 import type { Book } from '../domain'
 import { SOURCE_ORIGIN } from '../domain'
 
+/**
+ * A hanging request is worse than a failing one: without a deadline the shelf
+ * spins forever and the cached catalogue is never consulted. Captive portals
+ * and half-dead mobile links are common enough to budget for.
+ */
+const FETCH_TIMEOUT_MS = 8_000
+
 async function fetchText(url: string): Promise<string> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`请求失败 ${response.status}：${url}`)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      throw new Error(`请求失败 ${response.status}：${url}`)
+    }
+    return await response.text()
+  } catch (cause) {
+    if (controller.signal.aborted) {
+      throw new Error('网络超时，已改用本机缓存')
+    }
+    throw cause
+  } finally {
+    clearTimeout(timer)
   }
-  return response.text()
 }
 
 /**

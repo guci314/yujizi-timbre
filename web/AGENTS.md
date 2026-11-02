@@ -9,6 +9,17 @@ specific to this subtree.
 - It is not wired into the Gradle build. `./gradlew` never touches `web/`, and `web/` never imports Kotlin code.
 - Keep it that way: the two apps share content and intent, not code.
 
+## Architecture
+
+- Three layers, one direction of dependency: `views/` → `psm/` → `pim/`, plus `core/` for data access.
+- `pim/` is pure: no DOM, no Vue, no IndexedDB, no `fetch`. A grid is a total `(state, event) -> (ctx, effects)` table;
+  slots return `Effect[]` instead of calling the platform. Do not import `vue` or `psm/` from `pim/`.
+- `psm/` owns the platform: the `<audio>` element (`audio-driver.ts`), IndexedDB/Cache Storage (`storage-driver.ts`),
+  and the singleton stores. Views never hold playback flags of their own.
+- `views/` only reads the projected state and dispatches events. If a view needs a new behaviour, add an event and a cell.
+- The playback table is `pim/player-grid.ts` (7 states x 16 events). Adding an event means adding a cell to **every**
+  state; `pnpm test` fails on a missing one, by design.
+
 ## Commands
 
 - Install: `pnpm install` (from inside `web/`)
@@ -33,12 +44,21 @@ specific to this subtree.
 ## Playback rules
 
 - Opening a book prepares a track; it must not start playback. Browsers reject playback no gesture asked for,
-  so a rejected `play()` without user activation is not an error (`playbackFailureMessage` returns undefined).
+  so a rejected `play()` without user activation is not an error: the driver emits `E_PLAY_BLOCKED` and the grid
+  settles into a ready-but-paused state at the requested position.
+- Viewing a book's chapter list must never touch the playing session. Only `E_PLAY_AT` (chapter click, bookmark
+  hop, play button on a detail page) switches books; `E_PREPARE_BOOK` is ignored outside `S0_IDLE`.
+- A play control on a detail page means "play this book", not "toggle whatever is loaded". `PlayerView` decides
+  between `playAt` and `toggle` from `isPlayingBook`; do not collapse that back into one call.
 - The audio element sets `crossOrigin` before any `src`. Downloaded audio is served by the service
   worker from the Cache API, and a cached response only satisfies a ranged media request when the
   element asked in CORS mode. It is required even for same-origin sources.
 - Background and lock-screen playback is not supported on iOS; do not claim it, and do not add code that
   pretends otherwise.
+- The sleep countdown is decremented only in `S4_PLAYING`, by `E_TICK_1S`. Never add a wall-clock deadline;
+  pausing must freeze it structurally, not by remembering to clear a timer.
+- Progress is written per book position (`lastPersistedTime`), and every track switch emits
+  `PERSIST_PROGRESS` for the outgoing track before loading the new one.
 
 ## Offline download rules
 
@@ -61,17 +81,29 @@ specific to this subtree.
 
 ## Storage rules
 
-- IndexedDB holds progress, bookmarks and the download index. Audio bytes never go in IndexedDB; they
-  live in Cache Storage. That split is deliberate.
+- IndexedDB holds progress, bookmarks, the download index, and `books_catalog`. Audio bytes never go in
+  IndexedDB; they live in Cache Storage. That split is deliberate.
+- `books_catalog` is what makes the app openable offline: every successful index/book parse is cached, and
+  the shelf and chapter list fall back to it when the network fails. Caching audio without caching the
+  chapter list is the bug that table exists to prevent.
 - Bookmark and download rows denormalise the book and track titles so their lists render without
   refetching books.
-- The schema is at version 2. Bump the version and create stores idempotently inside `onupgradeneeded`;
+- The schema is at version 3. Bump the version and create stores idempotently inside `onupgradeneeded`;
   never assume a fresh database.
+- A download writes bytes first and the record second; if the record write fails, the bytes are deleted
+  before the error escapes. `reconcile`/`repairDownloads` in `pim/offline-grid.ts` audit that contract,
+  and the offline page exposes it as 核对账实.
 - `deleteDatabase` exists purely as a test seam; production keeps one connection for the app's lifetime.
 
 ## Testing
 
 - Cover parsing, playback decisions, and storage round-trips. Those are where the real regressions live.
+- `pim/__tests__/player-grid.test.ts` is the regression net for playback: it asserts the table is complete
+  (7 x 16 cells) and runs a BFS over the reachable state graph against the domain invariants (sleep cannot
+  resurrect, pausing freezes the countdown, another book cannot disturb the session, external pause leaves
+  S4). A playback change that is not expressed in the grid cannot be tested this way, which is the point.
+- `pim/__tests__/offline-grid.test.ts` replays every short download interleaving against an in-memory store,
+  including an injected record-write failure, and asserts the index and the cached bytes still agree.
 - Prefer the existing fakes (`FakeAudio`, `fake-indexeddb`) over new ones.
 - Fixtures come from the live site; if a fixture must change, say why in the commit message.
 

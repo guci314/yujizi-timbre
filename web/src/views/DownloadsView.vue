@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ensureDownloadsLoaded, useDownloads } from '../core/downloads-store'
 import { formatBytes, ratio } from '../core/format'
-import { useLibrary } from '../core/library'
+import { ensureDownloadsLoaded, useDownloads } from '../psm/download-store'
+import { useLibrary } from '../psm/library-store'
 
 const router = useRouter()
 const downloads = useDownloads()
 const { books, loadBooks } = useLibrary()
+
+const auditNote = ref<string>()
 
 /** Downloads grouped by book, largest first. */
 const groups = computed(() => {
@@ -30,6 +32,15 @@ const usedRatio = computed(() =>
   downloads.usage.value === undefined ? 0 : ratio(downloads.usage.value.usage, downloads.usage.value.quota),
 )
 const usedPercent = computed(() => Math.round(usedRatio.value * 100))
+
+async function runAudit(): Promise<void> {
+  auditNote.value = '正在核对…'
+  const result = await downloads.audit()
+  auditNote.value =
+    result.danglingRecords === 0 && result.orphanBytes === 0
+      ? '账实一致，无需修复。'
+      : `已修复：清除 ${result.danglingRecords} 条无字节记录、${result.orphanBytes} 份无记录字节。`
+}
 
 onMounted(async () => {
   await Promise.all([ensureDownloadsLoaded(), loadBooks()])
@@ -67,6 +78,11 @@ onMounted(async () => {
           未获授权（不影响使用，装到主屏幕可免除 7 天清理）
         </span>
       </div>
+
+      <div class="storage-card__actions">
+        <button class="link-button" @click="runAudit">核对账实</button>
+        <span v-if="auditNote" class="muted">{{ auditNote }}</span>
+      </div>
     </div>
 
     <p v-if="downloads.error.value" class="error-banner">{{ downloads.error.value }}</p>
@@ -82,11 +98,7 @@ onMounted(async () => {
             {{ group.title }}
           </button>
           <span class="muted">{{ group.count }} 集 · {{ formatBytes(group.bytes) }}</span>
-          <button
-            class="link-button link-button--danger"
-            :disabled="downloads.busy.value"
-            @click="downloads.dropBook(group.slug)"
-          >
+          <button class="link-button link-button--danger" :disabled="downloads.busy.value" @click="downloads.dropBook(group.slug)">
             清除
           </button>
         </div>
@@ -96,7 +108,7 @@ onMounted(async () => {
         <button class="link-button link-button--danger" :disabled="downloads.busy.value" @click="downloads.dropAll()">
           清除全部下载
         </button>
-        <span class="muted">共 {{ books.length }} 本书可下载，全部约 1.1 GB</span>
+        <span class="muted">共 {{ books.length }} 本书可下载</span>
       </div>
     </template>
 
@@ -104,11 +116,7 @@ onMounted(async () => {
       <li v-for="entry in downloads.entries.value" :key="entry.url" class="download-row">
         <span class="download-row__name">{{ entry.bookTitle }} · {{ entry.trackName }}</span>
         <span class="muted">{{ formatBytes(entry.sizeBytes) }}</span>
-        <button
-          class="link-button link-button--danger"
-          :disabled="downloads.busy.value"
-          @click="downloads.dropTrack(entry.url)"
-        >
+        <button class="link-button link-button--danger" :disabled="downloads.busy.value" @click="downloads.dropTrack(entry.url)">
           删除
         </button>
       </li>

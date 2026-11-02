@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useLibrary } from '../core/library'
+import { useLibrary } from '../psm/library-store'
 
 const router = useRouter()
-const { books, loading, error, loadBooks } = useLibrary()
+const { books, loading, offline, error, loadBooks } = useLibrary()
 
 onMounted(() => void loadBooks())
 
-function openBook(slug: string) {
+function openBook(slug: string): void {
   void router.push({ name: 'player', params: { slug } })
 }
 </script>
@@ -22,6 +22,7 @@ function openBook(slug: string) {
       <RouterLink class="link-button" :to="{ name: 'bookmarks' }">书签</RouterLink>
     </div>
 
+    <p v-if="offline && books.length > 0" class="badge">离线模式 · 显示本机缓存的书架</p>
     <p v-if="error" class="error-banner">{{ error }}</p>
     <p v-else-if="loading && books.length === 0" class="empty-state">正在载入书架…</p>
     <p v-else-if="books.length === 0" class="empty-state">书架是空的。</p>

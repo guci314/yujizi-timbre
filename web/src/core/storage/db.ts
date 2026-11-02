@@ -1,11 +1,16 @@
-import type { Bookmark, DownloadedTrack, Progress } from '../domain'
+import type { BookCatalogEntry, Bookmark, DownloadedTrack, Progress } from '../domain'
 
 const DB_NAME = 'timbre-web'
-/** v2 adds the downloads store; the upgrade creates stores idempotently. */
-const DB_VERSION = 2
+/**
+ * v2 added the downloads store; v3 adds `books_catalog`, the offline shelf.
+ * The upgrade creates every store idempotently, so an old database upgrades
+ * one version at a time without assuming a fresh install.
+ */
+const DB_VERSION = 3
 const PROGRESS_STORE = 'progress'
 const BOOKMARK_STORE = 'bookmarks'
 const DOWNLOAD_STORE = 'downloads'
+const CATALOG_STORE = 'books_catalog'
 
 let dbPromise: Promise<IDBDatabase> | undefined
 
@@ -24,6 +29,9 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(DOWNLOAD_STORE)) {
         const store = db.createObjectStore(DOWNLOAD_STORE, { keyPath: 'url' })
         store.createIndex('bookSlug', 'bookSlug', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(CATALOG_STORE)) {
+        db.createObjectStore(CATALOG_STORE, { keyPath: 'slug' })
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -131,6 +139,23 @@ export async function deleteDownloadRecordsForBook(bookSlug: string): Promise<vo
 /** Forget every download record. */
 export async function deleteAllDownloadRecords(): Promise<void> {
   await against(DOWNLOAD_STORE, 'readwrite', (store) => store.clear())
+}
+
+/* Offline catalogue: the book list and chapter lists, so the shelf opens with no network. */
+
+export async function saveCatalogEntry(entry: BookCatalogEntry): Promise<BookCatalogEntry> {
+  await against(CATALOG_STORE, 'readwrite', (store) => store.put(entry))
+  return entry
+}
+
+export function loadCatalogEntry(slug: string): Promise<BookCatalogEntry | undefined> {
+  return against(CATALOG_STORE, 'readonly', (store) => store.get(slug))
+}
+
+/** Every cached book, most recently refreshed first. */
+export async function loadCatalogEntries(): Promise<BookCatalogEntry[]> {
+  const entries = await against<BookCatalogEntry[]>(CATALOG_STORE, 'readonly', (store) => store.getAll())
+  return entries.sort((left, right) => right.updatedAt - left.updatedAt)
 }
 
 /**

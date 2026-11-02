@@ -85,3 +85,18 @@ export class StorageFullError extends Error {
     this.name = 'StorageFullError'
   }
 }
+
+/**
+ * A book page cached on the device.
+ *
+ * The shelf and the chapter list must render with no network, so a parsed
+ * `BookDetail` is written here whenever it is fetched online, and again when a
+ * track is downloaded. Without it, downloading audio is pointless (B3).
+ */
+export interface BookCatalogEntry {
+  slug: string
+  title: string
+  pageUrl: string
+  tracks: Track[]
+  updatedAt: number
+}

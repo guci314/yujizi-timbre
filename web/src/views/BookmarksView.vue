@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Bookmark } from '../core/domain'
 import { listBookmarks, removeBookmark } from '../core/bookmarks'
-import { formatTime } from '../player/playback'
+import { formatTime } from '../pim/player-model'
 
 const router = useRouter()
 const grouped = ref<Record<string, Bookmark[]>>({})
@@ -18,7 +18,7 @@ const groups = computed(() =>
   })),
 )
 
-async function refresh() {
+async function refresh(): Promise<void> {
   loading.value = true
   try {
     grouped.value = await listBookmarks()
@@ -30,9 +30,21 @@ async function refresh() {
   }
 }
 
-async function remove(id: string) {
+async function remove(id: string): Promise<void> {
   await removeBookmark(id)
   await refresh()
+}
+
+/**
+ * A bookmark is a position, so the position must travel with the navigation.
+ * Pushing only the slug is what made every bookmark open at the wrong second (B1).
+ */
+function openBookmark(item: Bookmark): void {
+  void router.push({
+    name: 'player',
+    params: { slug: item.bookSlug },
+    query: { track: String(item.trackIndex), time: String(item.currentTime) },
+  })
 }
 
 onMounted(() => void refresh())
@@ -55,10 +67,7 @@ onMounted(() => void refresh())
     <div v-for="group in groups" :key="group.slug" class="bookmark-group">
       <h2 class="bookmark-group__title">{{ group.title }}</h2>
       <div v-for="item in group.items" :key="item.id" class="bookmark-row">
-        <button
-          class="bookmark-row__main"
-          @click="router.push({ name: 'player', params: { slug: item.bookSlug } })"
-        >
+        <button class="bookmark-row__main" @click="openBookmark(item)">
           <span class="bookmark-row__label">{{ item.trackName }}</span>
           <span class="bookmark-row__meta">{{ formatTime(item.currentTime) }} · 第 {{ item.trackIndex + 1 }} 章</span>
         </button>

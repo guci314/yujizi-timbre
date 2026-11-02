@@ -1,58 +1,134 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useBookDetail, useLibrary } from '../core/library'
-import { player } from '../player/shared'
-import { SKIP_SECONDS } from '../player/usePlayer'
-import { formatTime, PLAYBACK_RATES } from '../player/playback'
 import { addBookmark } from '../core/bookmarks'
-import { ensureDownloadsLoaded, useDownloads } from '../core/downloads-store'
 import { formatBytes } from '../core/format'
+import { formatTime, PLAYBACK_RATES, SKIP_SECONDS, type SleepTimerOption } from '../pim/player-model'
+import { useDownloads, ensureDownloadsLoaded } from '../psm/download-store'
+import { useBookDetail, useLibrary } from '../psm/library-store'
+import { usePlayer } from '../psm/player-store'
+import { readProgress } from '../psm/storage-driver'
 import SleepTimerButton from '../components/SleepTimerButton.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { books, loadBooks } = useLibrary()
-const { detail, loading, error, noAudio, load } = useBookDetail()
-const state = player()
+const { books, loadBooks, offline } = useLibrary()
+const { detail, loading, error, noAudio, fromCache, load } = useBookDetail()
+const player = usePlayer()
 const downloads = useDownloads()
+
 const localError = ref<string>()
+const savedTrackIndex = ref(0)
+const savedTime = ref(0)
 
 const slug = computed(() => String(route.params.slug ?? ''))
-const track = computed(() => detail.value?.tracks[state.trackIndex.value])
-const canNext = computed(() => state.trackIndex.value < (detail.value?.tracks.length ?? 0) - 1)
-const canPrevious = computed(() => state.trackIndex.value > 0)
-const isCurrentBook = computed(() => state.book.value?.slug === slug.value)
+/** True only when the *player* is on this book, which is not the same as viewing it. */
+const isPlayingBook = computed(() => player.book.value?.slug === slug.value)
+
+/** What the page displays: the live session here, otherwise the last saved position. */
+const trackIndex = computed(() => (isPlayingBook.value ? player.trackIndex.value : savedTrackIndex.value))
+const currentTime = computed(() => (isPlayingBook.value ? player.currentTime.value : savedTime.value))
+const duration = computed(() => (isPlayingBook.value ? player.duration.value : 0))
+const isPlaying = computed(() => isPlayingBook.value && player.isPlaying.value)
+const track = computed(() => detail.value?.tracks[trackIndex.value])
+const canNext = computed(() => isPlayingBook.value && player.canNext.value)
+const canPrevious = computed(() => isPlayingBook.value && player.canPrevious.value)
 const downloadedHere = computed(() => downloads.downloadedCount(slug.value))
 const allDownloaded = computed(
   () => (detail.value?.tracks.length ?? 0) > 0 && downloadedHere.value >= (detail.value?.tracks.length ?? 0),
 )
+const sleepLabel = computed(() => (player.sleepMode.value === 'end-of-chapter' ? '本章结束' : undefined))
+const sleepRemaining = computed(() =>
+  player.sleepMode.value === 'minutes' ? player.sleepRemaining.value : undefined,
+)
 
-onMounted(async () => {
+async function openFromRoute(): Promise<void> {
+  const target = slug.value
+  localError.value = undefined
+  savedTrackIndex.value = 0
+  savedTime.value = 0
   await Promise.all([loadBooks(), ensureDownloadsLoaded()])
-  const book = books.value.find((candidate) => candidate.slug === slug.value)
+  if (target !== slug.value) return
+
+  const book = books.value.find((candidate) => candidate.slug === target)
   if (book === undefined) {
     localError.value = '找不到这本书'
     return
   }
-  if (isCurrentBook.value) return
-  const loaded = await load(book)
-  if (loaded !== undefined) await state.open(loaded)
-})
 
-function onSeek(event: Event) {
-  state.seek(Number((event.target as HTMLInputElement).value))
+  const loaded = await load(book)
+  if (loaded === undefined || target !== slug.value) return
+
+  const progress = await readProgress(loaded.slug)
+  if (progress !== undefined && progress.trackIndex < loaded.tracks.length) {
+    savedTrackIndex.value = progress.trackIndex
+    savedTime.value = progress.currentTime
+  }
+
+  // Bookmark hop: the position travels in the route, so it cannot be dropped (B1).
+  const queryTrack = Number(route.query.track)
+  const queryTime = Number(route.query.time)
+  if (Number.isInteger(queryTrack) && queryTrack >= 0) {
+    player.playAt(loaded, queryTrack, Number.isFinite(queryTime) ? queryTime : 0)
+    return
+  }
+
+  // Viewing a book must not touch a session that is already playing another one (B2).
+  if (player.ctx.value.state === 'S0_IDLE') {
+    player.prepare(loaded, savedTrackIndex.value, savedTime.value)
+  }
 }
 
-async function addCurrentBookmark() {
+onMounted(() => void openFromRoute())
+
+/** The component is reused when only the slug changes; reload instead of showing stale chapters. */
+watch(slug, () => void openFromRoute())
+
+function primary(): void {
+  const book = detail.value
+  if (book === undefined) return
+  if (isPlayingBook.value) {
+    player.toggle()
+    return
+  }
+  // A play control on a detail page means "play this book", never "toggle whatever
+  // else is loaded". This is the UI half of the B2 fix.
+  player.playAt(book, trackIndex.value, currentTime.value)
+}
+
+function playChapter(index: number): void {
+  const book = detail.value
+  if (book === undefined) return
+  player.playAt(book, index, 0)
+}
+
+function seekTo(seconds: number): void {
+  if (!isPlayingBook.value) return
+  player.seek(seconds)
+}
+
+function skip(delta: number): void {
+  if (!isPlayingBook.value) return
+  player.skip(delta)
+}
+
+function onSeek(event: Event): void {
+  seekTo(Number((event.target as HTMLInputElement).value))
+}
+
+function setSleep(option: SleepTimerOption | null): void {
+  player.setSleep(option)
+}
+
+async function addCurrentBookmark(): Promise<void> {
   const book = detail.value
   if (book === undefined) return
   await addBookmark({
     bookSlug: book.slug,
     bookTitle: book.title,
-    trackIndex: state.trackIndex.value,
+    trackIndex: trackIndex.value,
     trackName: track.value?.name ?? book.title,
-    currentTime: state.currentTime.value,
+    currentTime: currentTime.value,
   })
   localError.value = undefined
   await router.push({ name: 'bookmarks' })
@@ -73,51 +149,61 @@ async function addCurrentBookmark() {
     <p v-else-if="loading" class="empty-state">正在载入章节…</p>
 
     <template v-if="detail">
+      <p v-if="fromCache" class="badge">离线模式 · 章节表来自本机缓存</p>
+      <p v-if="offline && !fromCache" class="badge">离线模式</p>
+
       <div class="now-playing">
-        <p class="now-playing__book">{{ detail.title }} · 第 {{ state.trackIndex.value + 1 }} / {{ detail.tracks.length }} 章</p>
+        <p class="now-playing__book">
+          {{ detail.title }} · 第 {{ trackIndex + 1 }} / {{ detail.tracks.length }} 章
+          <span v-if="isPlayingBook" class="muted">· 正在播放</span>
+        </p>
         <p class="now-playing__track">{{ track?.name ?? '未选择章节' }}</p>
 
-        <p v-if="state.error.value" class="error-banner">{{ state.error.value }}</p>
+        <p v-if="player.error.value" class="error-banner">
+          {{ player.error.value }}
+          <button class="link-button" @click="player.toggle()">重试</button>
+        </p>
 
         <div class="progress-row">
-          <span>{{ formatTime(state.currentTime.value) }}</span>
+          <span>{{ formatTime(currentTime) }}</span>
           <input
             type="range"
             min="0"
-            :max="state.duration.value || 0"
+            :max="duration || 0"
             step="1"
-            :value="state.currentTime.value"
+            :value="currentTime"
+            :disabled="!isPlayingBook"
             aria-label="播放进度"
             @input="onSeek"
           />
-          <span>{{ formatTime(state.duration.value) }}</span>
+          <span>{{ formatTime(duration) }}</span>
         </div>
 
         <div class="controls">
-          <button
-            class="control-button"
-            data-testid="skip-back"
-            aria-label="后退 30 秒"
-            @click="state.skipBack(SKIP_SECONDS)"
-          >
+          <button class="control-button" data-testid="skip-back" aria-label="后退 30 秒" :disabled="!isPlayingBook" @click="skip(-SKIP_SECONDS)">
             ⟲
           </button>
-          <button class="control-button control-button--primary" aria-label="播放或暂停" @click="state.toggle()">
-            {{ state.isPlaying.value ? '⏸' : '▶' }}
+          <button
+            class="control-button control-button--primary"
+            aria-label="播放或暂停"
+            @click="primary"
+          >
+            {{ isPlaying ? '⏸' : '▶' }}
           </button>
           <button
             class="control-button"
             data-testid="skip-forward"
             aria-label="前进 30 秒"
-            @click="state.skipForward(SKIP_SECONDS)"
+            :disabled="!isPlayingBook"
+            @click="skip(SKIP_SECONDS)"
           >
             ⟳
           </button>
         </div>
 
         <div class="chapter-controls">
-          <button class="link-button" :disabled="!canPrevious" @click="state.previous()">上一章</button>
-          <button class="link-button" :disabled="!canNext" @click="state.next()">下一章</button>
+          <button class="link-button" :disabled="!canPrevious" @click="player.previous()">上一章</button>
+          <button class="link-button" :disabled="!canNext" @click="player.next()">下一章</button>
         </div>
 
         <div class="rates">
@@ -125,8 +211,8 @@ async function addCurrentBookmark() {
             v-for="rate in PLAYBACK_RATES"
             :key="rate"
             class="rate-chip"
-            :aria-pressed="state.rate.value === rate"
-            @click="state.setRate(rate)"
+            :aria-pressed="player.rate.value === rate"
+            @click="player.setRate(rate)"
           >
             {{ rate }}×
           </button>
@@ -134,26 +220,24 @@ async function addCurrentBookmark() {
 
         <div class="sleep-timer-row">
           <SleepTimerButton
-            :remaining="state.sleepRemaining.value"
-            :active="state.sleepTimer.value"
-            :on-start="state.setSleepTimer"
-            :on-cancel="state.clearSleepTimer"
+            :remaining="sleepRemaining"
+            :label="sleepLabel"
+            :on-start="setSleep"
+            :on-cancel="() => setSleep(null)"
           />
-          <p v-if="state.sleepTimer.value" class="sleep-timer-note">
-            {{ state.sleepTimer.value.label }}后自动停止播放
+          <p v-if="player.sleepMode.value !== 'off'" class="sleep-timer-note">
+            {{ sleepLabel ?? '倒计时结束' }}后自动停止播放（暂停时不计时）
           </p>
         </div>
       </div>
 
       <div class="chapter-list">
         <div class="chapter-list__head chapter-list__head--actions">
-          <span>共 {{ detail.tracks.length }} 章<template v-if="downloadedHere > 0"> · 已存 {{ downloadedHere }} 集</template></span>
+          <span>
+            共 {{ detail.tracks.length }} 章<template v-if="downloadedHere > 0"> · 已存 {{ downloadedHere }} 集</template>
+          </span>
           <span class="chapter-list__buttons">
-            <button
-              class="link-button"
-              :disabled="downloads.bookBusy.value || allDownloaded"
-              @click="downloads.saveBook(detail)"
-            >
+            <button class="link-button" :disabled="downloads.bookBusy.value || allDownloaded" @click="downloads.saveBook(detail)">
               {{ allDownloaded ? '已全部下载' : '下载整本' }}
             </button>
             <button
@@ -173,8 +257,8 @@ async function addCurrentBookmark() {
           <li v-for="(item, index) in detail.tracks" :key="item.url" class="chapter-row">
             <button
               class="chapter-item"
-              :aria-current="index === state.trackIndex.value"
-              @click="state.playTrack(index)"
+              :aria-current="isPlayingBook && index === player.trackIndex.value"
+              @click="playChapter(index)"
             >
               <span class="chapter-item__index">{{ index + 1 }}</span>
               <span>{{ item.name }}</span>
@@ -187,12 +271,14 @@ async function addCurrentBookmark() {
                 </template>
               </span>
               <span v-else-if="downloads.isDownloaded(item.url)" class="chapter-row__stored">
-                ✓ {{ formatBytes(downloads.recordFor(item.url)!.sizeBytes) }}
+                ✓ {{ formatBytes(downloads.recordFor(item.url)?.sizeBytes ?? 0) }}
+              </span>
+              <span v-else-if="downloads.failureFor(item.url)" class="chapter-row__stored" :title="downloads.failureFor(item.url)">
+                ✕ 失败
               </span>
               <button
                 v-if="downloads.isDownloaded(item.url)"
                 class="link-button link-button--danger"
-                :disabled="downloads.isActive(item.url)"
                 aria-label="删除这一集的下载"
                 @click="downloads.dropTrack(item.url)"
               >
@@ -214,4 +300,3 @@ async function addCurrentBookmark() {
     </template>
   </section>
 </template>
-

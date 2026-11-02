@@ -1,32 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { player } from '../player/shared'
+import { usePlayer } from '../psm/player-store'
 
 const route = useRoute()
 const router = useRouter()
-const state = player()
+const player = usePlayer()
 
-/** Hidden while the player page itself is open; that page has full controls. */
-const visible = computed(() => state.book.value !== undefined && route.name !== 'player')
-const subtitle = computed(() => state.book.value?.title ?? '')
-const title = computed(() => {
-  const book = state.book.value
-  if (book === undefined) return ''
-  return book.tracks[state.trackIndex.value]?.name ?? book.title
-})
+/** Hidden on the player page itself, whose full controls are already on screen. */
+const visible = computed(() => player.book.value !== null && route.name !== 'player')
+const title = computed(() => player.trackName.value || player.book.value?.title || '')
+const subtitle = computed(() => player.book.value?.title ?? '')
 
-function openPlayer() {
-  const book = state.book.value
-  if (book === undefined) return
+function openPlayer(): void {
+  const book = player.book.value
+  if (book === null) return
   void router.push({ name: 'player', params: { slug: book.slug } })
 }
 </script>
 
 <template>
   <div v-if="visible" class="mini-player">
-    <button class="control-button" aria-label="播放或暂停" @click="state.toggle()">
-      {{ state.isPlaying.value ? '⏸' : '▶' }}
+    <button class="control-button" aria-label="播放或暂停" @click="player.toggle()">
+      {{ player.isPlaying.value ? '⏸' : '▶' }}
     </button>
     <button class="mini-player__info" @click="openPlayer">
       <span class="mini-player__title">{{ title }}</span>

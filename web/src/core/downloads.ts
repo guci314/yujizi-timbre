@@ -39,6 +39,54 @@ export function isQuotaError(cause: unknown): boolean {
   return false
 }
 
+/** Drain a response body, reporting progress, so the bytes can be cached in one write. */
+async function collectBody(
+  response: Response,
+  onProgress?: (progress: DownloadProgress) => void,
+  url = '',
+): Promise<{ chunks: Uint8Array[]; received: number }> {
+  const declaredLength = Number(response.headers.get('content-length') ?? 0)
+  const chunks: Uint8Array[] = []
+  let received = 0
+  const body = response.body
+  if (body !== null) {
+    const reader = body.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      received += value.length
+      onProgress?.({ url, received, total: declaredLength })
+    }
+  } else {
+    const buffer = new Uint8Array(await response.arrayBuffer())
+    chunks.push(buffer)
+    received = buffer.length
+    onProgress?.({ url, received, total: declaredLength })
+  }
+  return { chunks, received }
+}
+
+/**
+ * Fetch one track's whole body without storing it.
+ *
+ * Playback only ever asks for byte ranges (a 206), so nothing lands in the
+ * cache on its own; only this full read can be stored. The caller decides how
+ * to store it, which is what lets `download-store` route the write through the
+ * download grid's ordering.
+ */
+export async function fetchTrackBytes(
+  track: Track,
+  options: DownloadOptions = {},
+): Promise<{ body: Blob; sizeBytes: number; headers: Headers }> {
+  const response = await fetch(track.url, { signal: options.signal })
+  if (!response.ok) {
+    throw new Error(`下载失败（${response.status}）：${track.name}`)
+  }
+  const { chunks, received } = await collectBody(response, options.onProgress, track.url)
+  return { body: new Blob(chunks), sizeBytes: received, headers: response.headers }
+}
+
 /**
  * Store one track on the device.
  *
@@ -56,26 +104,7 @@ export async function downloadTrack(
   if (!response.ok) {
     throw new Error(`下载失败（${response.status}）：${track.name}`)
   }
-  const declaredLength = Number(response.headers.get('content-length') ?? 0)
-
-  const chunks: Uint8Array[] = []
-  let received = 0
-  const body = response.body
-  if (body !== null) {
-    const reader = body.getReader()
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-      received += value.length
-      options.onProgress?.({ url: track.url, received, total: declaredLength })
-    }
-  } else {
-    const buffer = new Uint8Array(await response.arrayBuffer())
-    chunks.push(buffer)
-    received = buffer.length
-    options.onProgress?.({ url: track.url, received, total: declaredLength })
-  }
+  const { chunks, received } = await collectBody(response, options.onProgress, track.url)
 
   const record: DownloadedTrack = {
     url: track.url,
@@ -87,8 +116,9 @@ export async function downloadTrack(
     downloadedAt: Date.now(),
   }
 
+  let cache: Cache
   try {
-    const cache = await openCache()
+    cache = await openCache()
     // A fresh Response is built rather than reusing the consumed one.
     await cache.put(track.url, new Response(new Blob(chunks), { headers: response.headers }))
   } catch (cause) {
@@ -98,7 +128,14 @@ export async function downloadTrack(
     throw cause
   }
 
-  await saveDownload(record)
+  try {
+    await saveDownload(record)
+  } catch (cause) {
+    // The record is the index over the bytes. If it cannot be written, the
+    // bytes must go too, or the cache and the index drift apart (I6).
+    await cache.delete(track.url).catch(() => undefined)
+    throw cause
+  }
   return record
 }
 
@@ -162,6 +199,14 @@ export async function downloadBook(
 export async function isDownloaded(url: string): Promise<boolean> {
   const cache = await openCache()
   return (await cache.match(url)) !== undefined
+}
+
+/** Turn a download failure into a message the UI may show verbatim. */
+export function classifyDownloadFailure(cause: unknown): string {
+  if (cause instanceof StorageFullError) return cause.message
+  if (isQuotaError(cause)) return '设备存储空间不足，无法保存这一集。请先清理已下载的内容。'
+  if (cause instanceof Error && cause.message.length > 0) return cause.message
+  return '下载失败，请稍后重试'
 }
 
 /** Every stored track, newest first. */
