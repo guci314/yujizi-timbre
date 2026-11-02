@@ -1,26 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { SLEEP_TIMER_OPTIONS, type SleepTimerOption } from '../pim/player-model'
+import { SLEEP_OPTIONS, type SleepOption } from '../pim/listening-model'
+import { formatCountdown } from '../psm/format-clock'
 
 const props = defineProps<{
-  /** Seconds left on a minute timer; undefined when no minute timer runs. */
+  /** 分钟睡眠香剩余秒数；未设分钟香时为 undefined。 */
   remaining: number | undefined
-  /** Extra label for modes without a countdown, e.g. 本章结束. */
+  /** 没有倒计时的睡眠规则（本章诵毕）的显示名。 */
   label: string | undefined
-  onStart: (option: SleepTimerOption) => void
+  onStart: (option: SleepOption) => void
   onCancel: () => void
 }>()
 
 const open = ref(false)
 
-function formatRemaining(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds))
-  const minutes = Math.floor(total / 60)
-  const secs = total % 60
-  return `${minutes}:${String(secs).padStart(2, '0')}`
+function optionLabel(option: SleepOption): string {
+  return option.kind === 'end-of-chapter' ? '本章诵毕' : `${option.minutes} 分钟`
 }
 
-function choose(option: SleepTimerOption): void {
+function choose(option: SleepOption): void {
   props.onStart(option)
   open.value = false
 }
@@ -34,20 +32,19 @@ function cancel(): void {
 <template>
   <div class="sleep-timer">
     <button class="link-button" data-testid="sleep-timer-toggle" :aria-expanded="open" @click="open = !open">
-      <template v-if="remaining !== undefined">🌙 {{ formatRemaining(remaining) }}</template>
+      <template v-if="remaining !== undefined">🌙 {{ formatCountdown(remaining) }}</template>
       <template v-else-if="label !== undefined">🌙 {{ label }}</template>
-      <template v-else>🌙 睡眠定时</template>
+      <template v-else>🌙 睡眠香</template>
     </button>
 
     <div v-if="open" class="sleep-timer__menu" data-testid="sleep-timer-menu">
       <button
-        v-for="option in SLEEP_TIMER_OPTIONS"
-        :key="option.label"
+        v-for="option in SLEEP_OPTIONS"
+        :key="optionLabel(option)"
         class="sleep-timer__option"
-        :aria-pressed="label === option.label || (option.kind === 'minutes' && remaining !== undefined && option.label === `${Math.ceil((remaining ?? 0) / 60)} 分钟`)"
         @click="choose(option)"
       >
-        {{ option.label }}
+        {{ optionLabel(option) }}
       </button>
       <button
         v-if="remaining !== undefined || label !== undefined"
@@ -55,7 +52,7 @@ function cancel(): void {
         data-testid="sleep-timer-cancel"
         @click="cancel"
       >
-        取消定时
+        取消
       </button>
     </div>
   </div>

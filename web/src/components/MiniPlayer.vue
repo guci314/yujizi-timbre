@@ -7,26 +7,25 @@ const route = useRoute()
 const router = useRouter()
 const player = usePlayer()
 
-/** Hidden on the player page itself, whose full controls are already on screen. */
+/** 播放页自己就有完整控件，这里不重复。 */
 const visible = computed(() => player.book.value !== null && route.name !== 'player')
-const title = computed(() => player.trackName.value || player.book.value?.title || '')
-const subtitle = computed(() => player.book.value?.title ?? '')
+const title = computed(() => player.chapterTitle.value || player.bookTitle.value)
 
 function openPlayer(): void {
   const book = player.book.value
   if (book === null) return
-  void router.push({ name: 'player', params: { slug: book.slug } })
+  void router.push({ name: 'player', params: { slug: book.id } })
 }
 </script>
 
 <template>
   <div v-if="visible" class="mini-player">
-    <button class="control-button" aria-label="播放或暂停" @click="player.toggle()">
+    <button class="control-button" aria-label="开讲或暂停" @click="player.toggle()">
       {{ player.isPlaying.value ? '⏸' : '▶' }}
     </button>
     <button class="mini-player__info" @click="openPlayer">
       <span class="mini-player__title">{{ title }}</span>
-      <span class="mini-player__subtitle">{{ subtitle }}</span>
+      <span class="mini-player__subtitle">{{ player.bookTitle.value }}</span>
     </button>
     <button class="link-button" @click="openPlayer">展开</button>
   </div>

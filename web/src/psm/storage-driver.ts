@@ -1,14 +1,18 @@
 /**
- * Storage driver: the only place where IndexedDB and Cache Storage are touched.
+ * 书架伺服驱动：把「留存」这件事真正做成本机可离线的样子。
  *
- * It implements the port the offline grid demands, so the ordering that keeps
- * "bytes stored" and "record indexed" in agreement lives in one auditable spot.
+ * 浏览器把脏活塞在这里：拉整段、核长度与指纹、先落字节再落索引、失败回滚、
+ * 存量旧文件分批核验。业务层只看见「留存中 → 已留存」这一句话。
  */
 
-import type { BookCatalogEntry, BookDetail, DownloadedTrack } from '../core/domain'
-import type { Progress } from '../core/domain'
+import type { BookCatalogEntry, BookDetail, DownloadedTrack, Progress, Track } from '../core/domain'
 import { AUDIO_CACHE } from '../core/audio-cache'
-import { fetchTrackBytes } from '../core/downloads'
+import { classifyDownloadFailure, fetchTrackBytes } from '../core/downloads'
+import {
+  expectedIntegrityFor,
+  verifyBytes,
+  type AudioIntegrity,
+} from '../core/integrity'
 import {
   deleteDownloadRecord,
   loadCatalogEntries,
@@ -19,24 +23,6 @@ import {
   saveDownload,
   saveProgress,
 } from '../core/storage/db'
-import { classifyDownloadFailure } from '../core/downloads'
-import {
-  expectedIntegrityFor,
-  verifyBytes,
-  type AudioIntegrity,
-} from '../core/integrity'
-import {
-  isConsistent,
-  reconcile,
-  repairDownloads,
-  runDownloadEffects,
-  initialDownloadContext,
-  DOWNLOAD_GRID,
-  type DownloadPort,
-  type ReconcilePlan,
-} from '../pim/offline-grid'
-import type { Track } from '../core/domain'
-import { step } from '../pim/kernel'
 
 export function persistProgress(progress: Progress): Promise<Progress> {
   return saveProgress(progress)
@@ -46,9 +32,9 @@ export function readProgress(bookSlug: string): Promise<Progress | undefined> {
   return loadProgress(bookSlug)
 }
 
-/* --- Offline catalogue ------------------------------------------------------ */
+/* --- 离线书箧 --------------------------------------------------------------- */
 
-/** Cache a parsed book so the shelf and its chapter list survive a dead network. */
+/** 把解析好的整卷记进本机，断网时书架与目录照样打得开。 */
 export function cacheBook(book: BookDetail): Promise<BookCatalogEntry> {
   return saveCatalogEntry({
     slug: book.slug,
@@ -67,7 +53,27 @@ export function loadCatalogBook(slug: string): Promise<BookCatalogEntry | undefi
   return loadCatalogEntry(slug)
 }
 
-/* --- Download accounting ---------------------------------------------------- */
+/* --- 账实对账 --------------------------------------------------------------- */
+
+export interface ReconcilePlan {
+  /** 有索引、无字节。 */
+  readonly danglingRecords: readonly string[]
+  /** 有字节、无索引。 */
+  readonly orphanBytes: readonly string[]
+}
+
+export function reconcile(indexKeys: Iterable<string>, cacheKeys: Iterable<string>): ReconcilePlan {
+  const index = new Set(indexKeys)
+  const cache = new Set(cacheKeys)
+  return {
+    danglingRecords: [...index].filter((key) => !cache.has(key)).sort(),
+    orphanBytes: [...cache].filter((key) => !index.has(key)).sort(),
+  }
+}
+
+export function isConsistent(plan: ReconcilePlan): boolean {
+  return plan.danglingRecords.length === 0 && plan.orphanBytes.length === 0
+}
 
 export async function listAudioCacheKeys(): Promise<string[]> {
   if (typeof caches === 'undefined') return []
@@ -81,32 +87,36 @@ export async function listDownloadRecordKeys(): Promise<string[]> {
   return records.map((record) => record.url)
 }
 
-/** Compare the index with the bytes; both directions must be empty. */
 export async function auditDownloads(): Promise<ReconcilePlan> {
   const [records, bytes] = await Promise.all([listDownloadRecordKeys(), listAudioCacheKeys()])
   return reconcile(records, bytes)
 }
 
-/** The two deletions a repair may need; nothing else is ever written. */
-function createRepairPort(): DownloadPort {
-  return {
-    putBytes: async () => undefined,
-    deleteBytes: async (url) => {
-      const cache = await caches.open(AUDIO_CACHE)
-      await cache.delete(url)
-    },
-    putRecord: async () => undefined,
-    deleteRecord: deleteDownloadRecord,
-  }
+async function deleteAudioBytes(url: string): Promise<void> {
+  if (typeof caches === 'undefined') return
+  const cache = await caches.open(AUDIO_CACHE)
+  await cache.delete(url)
 }
 
-/** Drop drifted entries. Safe to run on every visit to the offline page. */
+async function repairPlan(plan: ReconcilePlan): Promise<void> {
+  for (const url of plan.danglingRecords) await deleteDownloadRecord(url).catch(() => undefined)
+  for (const url of plan.orphanBytes) await deleteAudioBytes(url).catch(() => undefined)
+}
+
+/** 清掉账实不符的残留。可每次进书箧页都跑。 */
 export async function repairDownloadDrift(): Promise<ReconcilePlan> {
-  const [records, bytes] = await Promise.all([listDownloadRecordKeys(), listAudioCacheKeys()])
-  const plan = reconcile(records, bytes)
-  if (isConsistent(plan)) return plan
-  await repairDownloads(createRepairPort(), plan)
+  const plan = await auditDownloads()
+  if (!isConsistent(plan)) await repairPlan(plan)
   return plan
+}
+
+/* --- 留存一篇 --------------------------------------------------------------- */
+
+export interface DownloadPort {
+  putBytes(url: string): Promise<void>
+  deleteBytes(url: string): Promise<void>
+  putRecord(record: { url: string; sizeBytes: number }): Promise<void>
+  deleteRecord(url: string): Promise<void>
 }
 
 export function createDownloadPort(
@@ -120,8 +130,7 @@ export function createDownloadPort(
       await cache.put(url, new Response(body, { headers }))
     },
     async deleteBytes(url) {
-      const cache = await caches.open(AUDIO_CACHE)
-      await cache.delete(url)
+      await deleteAudioBytes(url)
     },
     async putRecord(entry) {
       await saveDownload({ ...record, url: entry.url, sizeBytes: entry.sizeBytes })
@@ -132,16 +141,11 @@ export function createDownloadPort(
   }
 }
 
-export interface StoredTrack {
-  readonly record: DownloadedTrack
-}
-
 /**
- * Whole download, driven by the grid.
+ * 真正把一篇收进书箧。
  *
- * The grid decides the state and the effect order; this adapter supplies the
- * bytes and the two stores. A quota failure surfaces as `StorageFullError`,
- * and a record failure undoes the bytes before the error escapes.
+ * 顺序不可换：先落字节、再落索引；索引写不进去就把字节删掉。业务层只看见
+ * 「验明完好」或「留存受阻」两个结果。
  */
 export async function storeTrack(
   book: BookDetail,
@@ -149,121 +153,71 @@ export async function storeTrack(
   trackIndex: number,
   onProgress?: (received: number, total: number) => void,
 ): Promise<DownloadedTrack> {
-  const started = step(DOWNLOAD_GRID, initialDownloadContext(track.url), { type: 'E_START_DL' })
-
   try {
-    // `fetchTrackBytes` verifies length and SHA-256 before returning, so nothing
-    // below this line can ever see a truncated or tampered body.
+    // `fetchTrackBytes` 已经核过长度与指纹，这里拿到的必定是完好的一段。
     const { body, sizeBytes, headers, sha256 } = await fetchTrackBytes(track, {
       onProgress: (progress) => onProgress?.(progress.received, progress.total),
     })
 
-    const succeeded = step(DOWNLOAD_GRID, started.ctx, { type: 'E_DL_SUCCESS', sizeBytes })
-    const port = createDownloadPort(
-      {
-        bookSlug: book.slug,
-        bookTitle: book.title,
-        trackIndex,
-        trackName: track.name,
-        downloadedAt: Date.now(),
-        sha256,
-      },
-      body,
-      headers,
-    )
-
-    await runDownloadEffects(port, succeeded.ctx, succeeded.effects)
-
-    // Caching audio without caching the chapter list is the B3 bug: the book would
-    // be unopenable exactly when it is needed. Idempotent, so downloading a single
-    // track is enough to make the whole book readable offline.
-    await cacheBook(book).catch(() => undefined)
-
-    return {
-      url: track.url,
+    const record: Omit<DownloadedTrack, 'url' | 'sizeBytes'> = {
       bookSlug: book.slug,
       bookTitle: book.title,
       trackIndex,
       trackName: track.name,
-      sizeBytes,
       downloadedAt: Date.now(),
       sha256,
     }
-  } catch (cause) {
-    const reason = classifyDownloadFailure(cause)
-    // The grid's failure cell asks for a partial cleanup; a verification failure
-    // happens before the write, but a stale byte entry from an older attempt must
-    // not survive a failed one.
-    const failed = step(DOWNLOAD_GRID, started.ctx, { type: 'E_DL_FAIL', reason })
-    if (failed.effects.some((effect) => effect.type === 'DROP_PARTIAL')) {
-      await deleteAudioBytes(track.url).catch(() => undefined)
+    const port = createDownloadPort(record, body, headers)
+
+    try {
+      await port.putBytes(track.url)
+      await port.putRecord({ url: track.url, sizeBytes })
+    } catch (cause) {
+      await port.deleteBytes(track.url).catch(() => undefined)
+      throw cause
     }
-    throw new Error(reason)
+
+    // 收进一篇，整卷目录也要在本机可见，否则断网时打得开音频却打不开目录。
+    await cacheBook(book).catch(() => undefined)
+
+    return { ...record, url: track.url, sizeBytes }
+  } catch (cause) {
+    // 失败时顺手清掉这一篇可能残留的半截字节。
+    await deleteAudioBytes(track.url).catch(() => undefined)
+    throw new Error(classifyDownloadFailure(cause))
   }
 }
 
-async function deleteAudioBytes(url: string): Promise<void> {
-  if (typeof caches === 'undefined') return
-  const cache = await caches.open(AUDIO_CACHE)
-  await cache.delete(url)
-}
+/* --- 存量旧文件的懒核验 ------------------------------------------------------ */
 
-/* Re-exported so callers do not have to know which module owns the model. */
-
-/**
- * How many legacy tracks one visit may hash.
- *
- * A listener upgrading with 100+ episodes should not watch the offline page
- * hashing 4 GB on first open. The batch continues on the next visit (or on a
- * manual tap), and every verified track is stamped so the work never repeats.
- */
 export const AUDIT_BATCH_SIZE = 15
 
 export interface StoredAuditResult {
-  /** Records with no bytes behind them, before repair. */
   readonly danglingRecords: number
-  /** Cached bytes with no record in front of them, before repair. */
   readonly orphanBytes: number
-  /** Records already carrying a trustworthy marker; nothing was read. */
   readonly alreadyVerified: number
-  /** Legacy records actually read and hashed this run. */
   readonly checked: number
-  /** Records deleted because their bytes were missing, truncated or tampered. */
   readonly cleaned: number
-  /** Legacy records left for the next visit because this batch hit its cap. */
   readonly remaining: number
 }
 
 export interface StoredAuditOptions {
-  /** Injectable for tests; production uses the shipped manifest. */
   resolveExpected?: (url: string) => Promise<AudioIntegrity | undefined>
-  /** Fires before each track in this batch so the page can show "3/15". */
   onProgress?: (done: number, total: number) => void
-  /** Cap for this call; defaults to {@link AUDIT_BATCH_SIZE}. */
   maxChecks?: number
-  /**
-   * Urls with a download in flight.
-   *
-   * `storeTrack` writes the bytes before the record, so a download caught
-   * mid-flight looks exactly like drift from the outside. Deleting it would
-   * break a track that was about to succeed, so these are left alone.
-   */
   skipUrls?: Iterable<string>
 }
 
 /**
- * Lazy verification of tracks downloaded by older versions.
+ * 分批核验旧版本留下的留存文件。
  *
- * Downloads now stamp `sha256` on the record, so the common path reads nothing.
- * Records without a trustworthy marker (written before that stamp existed, or
- * against an older manifest) are checked once, **strictly one at a time**: a
- * listener may have ten 80 MB episodes, and hashing them concurrently would
- * exhaust an iPad's memory long before it finished.
+ * 新留存的文件在写入时就带着指纹，这里直接跳过；只有旧文件才需要读字节。
+ * 严格一首一首来：十首 80MB 同时读进 iPad 内存会把页面直接拖死。
  */
 export async function auditStoredTracks(options: StoredAuditOptions = {}): Promise<StoredAuditResult> {
   const resolveExpected = options.resolveExpected ?? ((url: string) => expectedIntegrityFor(url))
-
   const skip = new Set(options.skipUrls ?? [])
+
   let records = (await loadDownloads()).filter((record) => !skip.has(record.url))
   const cacheKeys = (await listAudioCacheKeys()).filter((key) => !skip.has(key))
   const plan = reconcile(
@@ -271,7 +225,7 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
     cacheKeys,
   )
   if (!isConsistent(plan)) {
-    await repairDownloads(createRepairPort(), plan)
+    await repairPlan(plan)
     records = (await loadDownloads()).filter((record) => !skip.has(record.url))
   }
 
@@ -279,8 +233,6 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
   let alreadyVerified = 0
   for (const record of records) {
     const expected = await resolveExpected(record.url)
-    // A stamp is trustworthy while it matches the manifest; a missing or stale
-    // stamp (the manifest may have been regenerated) means "check this one".
     if (record.sha256 !== undefined && (expected === undefined || record.sha256 === expected.sha256)) {
       alreadyVerified += 1
       continue
@@ -288,8 +240,6 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
     targets.push({ record, expected })
   }
 
-  // Smallest first: a batch of 15 short tracks finishes fast, instead of
-  // starting with a single 88 MB episode and leaving everything else pending.
   targets.sort((left, right) => left.record.sizeBytes - right.record.sizeBytes)
 
   const limit = Math.max(0, options.maxChecks ?? AUDIT_BATCH_SIZE)
@@ -309,8 +259,6 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
     const { record, expected } = batch[index]
     checked += 1
 
-    // Fast screen: the recorded size already contradicts the manifest, so the
-    // bytes need not even be read.
     if (expected !== undefined && record.sizeBytes > 0 && record.sizeBytes !== expected.size) {
       await drop(record.url)
       cleaned += 1
@@ -319,7 +267,6 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
 
     const response = await cache.match(record.url).catch(() => undefined)
     if (response === undefined) {
-      // Bytes vanished (Safari evicted them): the record is a lie, drop it.
       await drop(record.url)
       cleaned += 1
       continue
@@ -343,8 +290,6 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
       continue
     }
 
-    // Stamp the record so the next visit skips it. A failed write is not fatal:
-    // the bytes are good, and the next audit will simply check this one again.
     await saveDownload({
       ...record,
       sizeBytes: bytes.length,

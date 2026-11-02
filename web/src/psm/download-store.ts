@@ -1,9 +1,7 @@
 /**
- * Download store: a reactive projection of the download grid.
+ * 书箧外壳：把每一篇的留存快照投影给视图。
  *
- * Each track has exactly one of four states (D0..D3). The view asks the stage,
- * never a set of booleans, which is why "downloading" and "stored" can no
- * longer both be true at once.
+ * 视图问「这一篇在不在箧里」，答案只可能是四种之一，不再拼凑布尔值。
  */
 
 import { computed, ref, shallowRef } from 'vue'
@@ -17,21 +15,24 @@ import {
   storageUsage,
   type StorageUsage,
 } from '../core/downloads'
-import {
-  DOWNLOAD_GRID,
-  initialDownloadContext,
-  type DownloadContext,
-  type DownloadEvent,
-} from '../pim/offline-grid'
 import { step } from '../pim/kernel'
+import { RETENTION_GRID } from '../pim/retention-grid'
+import {
+  initialRetentionContext,
+  type KeepFailReason,
+  type RetentionContext,
+  type RetentionEvent,
+} from '../pim/retention-model'
 import { auditStoredTracks, storeTrack, type StoredAuditResult } from './storage-driver'
 import { formatBytes } from '../core/format'
 
-/** Tracks fetched at once while downloading a whole book. */
 const BOOK_CONCURRENCY = 3
 
 const records = shallowRef<DownloadedTrack[]>([])
-const stages = shallowRef<Map<string, DownloadContext>>(new Map())
+/** 每一篇的留存快照，按本机取用地址索引。 */
+const stages = shallowRef<Map<string, RetentionContext>>(new Map())
+/** 留存中的字节进度，仅用于展示。 */
+const bytes = shallowRef<Map<string, { received: number; total: number }>>(new Map())
 const usage = ref<StorageUsage>()
 const error = ref<string>()
 const bookBusy = ref(false)
@@ -39,17 +40,17 @@ const persisted = ref<boolean>()
 const auditing = ref(false)
 const auditNote = ref<string>()
 let loaded = false
-let auditRun: Promise<StoredAuditResult> | undefined
+let auditRun: Promise<StoredAuditResult | undefined> | undefined
 
-function recordContexts(entries: DownloadedTrack[]): Map<string, DownloadContext> {
+function stagesFromRecords(entries: DownloadedTrack[]): Map<string, RetentionContext> {
   return new Map(
     entries.map((entry) => [
       entry.url,
       {
-        ...initialDownloadContext(entry.url),
-        state: 'D2_STORED' as const,
-        sizeBytes: entry.sizeBytes,
-        received: entry.sizeBytes,
+        ...initialRetentionContext(entry.bookSlug, entry.trackIndex),
+        state: 'D2_KEPT' as const,
+        progressPct: 100,
+        occupiedSpace: entry.sizeBytes,
       },
     ]),
   )
@@ -58,10 +59,9 @@ function recordContexts(entries: DownloadedTrack[]): Map<string, DownloadContext
 async function refresh(): Promise<void> {
   const entries = await listDownloads()
   records.value = entries
-  const next = recordContexts(entries)
-  // Keep any in-flight stage so a refresh cannot pretend a running download stopped.
+  const next = stagesFromRecords(entries)
   for (const [url, stage] of stages.value) {
-    if (stage.state === 'D1_DOWNLOADING' || stage.state === 'D3_FAILED') next.set(url, stage)
+    if (stage.state === 'D1_KEEPING' || stage.state === 'D3_FAILED') next.set(url, stage)
   }
   stages.value = next
   usage.value = await storageUsage()
@@ -73,76 +73,107 @@ export async function ensureDownloadsLoaded(): Promise<void> {
   await refresh()
 }
 
-/** Advance one track's grid state and publish the new context. */
-function transition(url: string, event: DownloadEvent): DownloadContext {
-  const current = stages.value.get(url) ?? initialDownloadContext(url)
-  const result = step(DOWNLOAD_GRID, current, event)
-  const next = new Map(stages.value)
-  next.set(url, result.ctx)
-  stages.value = next
-  return result.ctx
+function transition(url: string, event: RetentionEvent): RetentionContext {
+  const current = stages.value.get(url) ?? initialRetentionContext('', 0)
+  const next = step(RETENTION_GRID, current, event)
+  const updated = new Map(stages.value)
+  updated.set(url, next)
+  stages.value = updated
+  return next
+}
+
+/** 平台原因 → 纯业务缘由。 */
+function keepReason(cause: unknown): KeepFailReason {
+  const reason = (cause as { reason?: KeepFailReason } | undefined)?.reason
+  if (reason !== undefined) return reason
+  const message = cause instanceof Error ? cause.message : ''
+  if (message.includes('空间不足')) return 'SPACE_FULL'
+  if (message.includes('校验失败')) return 'CONTENT_CORRUPTED'
+  return 'SOURCE_UNREACHABLE'
+}
+
+function reasonLabel(reason: KeepFailReason): string {
+  switch (reason) {
+    case 'SPACE_FULL':
+      return '书箧空间不足'
+    case 'CONTENT_CORRUPTED':
+      return '内容残损，未通过核验'
+    default:
+      return '书源中断'
+  }
 }
 
 export function useDownloads() {
   const entries = computed(() => [...records.value])
   const totalBytes = computed(() => records.value.reduce((sum, entry) => sum + entry.sizeBytes, 0))
   const busy = computed(
-    () => bookBusy.value || [...stages.value.values()].some((stage) => stage.state === 'D1_DOWNLOADING'),
+    () => bookBusy.value || [...stages.value.values()].some((stage) => stage.state === 'D1_KEEPING'),
   )
   const usageLabel = computed(() => {
     if (usage.value === undefined) return undefined
     return `已用 ${formatBytes(usage.value.usage)}${usage.value.quota > 0 ? ` / 可用约 ${formatBytes(usage.value.quota)}` : ''}`
   })
 
-  function stageFor(url: string): DownloadContext | undefined {
+  function stageFor(url: string): RetentionContext | undefined {
     return stages.value.get(url)
   }
 
   function isDownloaded(url: string): boolean {
-    return stages.value.get(url)?.state === 'D2_STORED'
+    return stages.value.get(url)?.state === 'D2_KEPT'
   }
 
   function isActive(url: string): boolean {
-    return stages.value.get(url)?.state === 'D1_DOWNLOADING'
+    return stages.value.get(url)?.state === 'D1_KEEPING'
   }
 
   function recordFor(url: string): DownloadedTrack | undefined {
     return records.value.find((entry) => entry.url === url)
   }
 
-  function downloadedCount(bookSlug: string): number {
-    return records.value.filter((entry) => entry.bookSlug === bookSlug).length
+  function downloadedCount(bookId: string): number {
+    return records.value.filter((entry) => entry.bookSlug === bookId).length
   }
 
   function progressFor(url: string): { received: number; total: number } | undefined {
-    const stage = stages.value.get(url)
-    if (stage === undefined || stage.state !== 'D1_DOWNLOADING') return undefined
-    return { received: stage.received, total: stage.total }
+    if (stages.value.get(url)?.state !== 'D1_KEEPING') return undefined
+    return bytes.value.get(url) ?? { received: 0, total: 0 }
   }
 
   function failureFor(url: string): string | undefined {
     const stage = stages.value.get(url)
-    return stage?.state === 'D3_FAILED' ? (stage.reason ?? '下载失败') : undefined
+    return stage?.state === 'D3_FAILED' && stage.failReason !== null ? reasonLabel(stage.failReason) : undefined
   }
 
   async function saveTrack(book: BookDetail, track: Track, index: number): Promise<boolean> {
-    const stage = stages.value.get(track.url)
-    if (stage?.state === 'D2_STORED' || stage?.state === 'D1_DOWNLOADING') return false
+    const current = stages.value.get(track.url)
+    if (current?.state === 'D2_KEPT' || current?.state === 'D1_KEEPING') return false
+
     error.value = undefined
-    transition(track.url, { type: 'E_START_DL' })
+    if (current === undefined || current.bookId === '') {
+      stages.value = new Map(stages.value).set(track.url, initialRetentionContext(book.slug, index))
+    }
+    transition(track.url, { type: 'E_REQUEST_KEEP' })
+    bytes.value = new Map(bytes.value).set(track.url, { received: 0, total: 0 })
 
     try {
       const stored = await storeTrack(book, track, index, (received, total) => {
-        transition(track.url, { type: 'E_DL_PROGRESS', received, total })
+        const item = bytes.value.get(track.url) ?? { received: 0, total }
+        bytes.value = new Map(bytes.value).set(track.url, { received, total: total || item.total })
+        const pct = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0
+        transition(track.url, { type: 'E_KEEP_PROGRESS', pct })
       })
-      transition(track.url, { type: 'E_DL_SUCCESS', sizeBytes: stored.sizeBytes })
+      transition(track.url, { type: 'E_VERIFIED_COMPLETE', space: stored.sizeBytes })
       await refresh()
       return true
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : '下载失败'
-      transition(track.url, { type: 'E_DL_FAIL', reason: message })
+      const message = cause instanceof Error ? cause.message : '留存失败'
+      transition(track.url, { type: 'E_KEEP_FAILED', reason: keepReason(cause) })
       error.value = message
       return false
+    } finally {
+      const next = new Map(bytes.value)
+      next.delete(track.url)
+      bytes.value = next
     }
   }
 
@@ -171,7 +202,7 @@ export function useDownloads() {
       const workers = Math.min(BOOK_CONCURRENCY, Math.max(pending.length, 1))
       await Promise.all(Array.from({ length: workers }, () => worker()))
       if (failures > 0 && error.value === undefined) {
-        error.value = `有 ${failures} 集下载失败，可稍后重试。`
+        error.value = `有 ${failures} 篇未能留存，可稍后重试。`
       }
     } finally {
       bookBusy.value = false
@@ -179,20 +210,20 @@ export function useDownloads() {
   }
 
   async function dropTrack(url: string): Promise<void> {
-    transition(url, { type: 'E_REMOVE' })
+    transition(url, { type: 'E_RELEASE' })
     await removeTrack(url)
     await refresh()
   }
 
-  async function dropBook(bookSlug: string): Promise<void> {
-    const urls = records.value.filter((entry) => entry.bookSlug === bookSlug).map((entry) => entry.url)
-    for (const url of urls) transition(url, { type: 'E_REMOVE' })
-    await removeBookDownloads(bookSlug)
+  async function dropBook(bookId: string): Promise<void> {
+    const urls = records.value.filter((entry) => entry.bookSlug === bookId).map((entry) => entry.url)
+    for (const url of urls) transition(url, { type: 'E_RELEASE' })
+    await removeBookDownloads(bookId)
     await refresh()
   }
 
   async function dropAll(): Promise<void> {
-    for (const url of records.value.map((entry) => entry.url)) transition(url, { type: 'E_REMOVE' })
+    for (const url of records.value.map((entry) => entry.url)) transition(url, { type: 'E_RELEASE' })
     await removeAllDownloads()
     await refresh()
   }
@@ -202,34 +233,26 @@ export function useDownloads() {
     usage.value = await storageUsage()
   }
 
-  /**
-   * Reconcile the index with the cache, then lazily verify legacy tracks.
-   *
-   * Safe to call on every visit: records already carrying a sha256 are skipped
-   * without touching their bytes, so only old downloads pay the hashing cost,
-   * and only once.
-   */
+  /** 对账 + 分批核验旧文件。可每次进书箧页都跑。 */
   async function audit(): Promise<StoredAuditResult | undefined> {
-    // A download in flight has bytes but no record yet, which looks exactly like
-    // drift. Wait for it rather than delete a track that is about to succeed.
     if (busy.value) {
-      auditNote.value = '有音频正在下载，完成后再校验本机文件'
+      auditNote.value = '有篇章正在留存，完成后再核验本机文件'
       return undefined
     }
 
     auditRun ??= (async () => {
       auditing.value = true
-      auditNote.value = '正在核对本机音频…'
+      auditNote.value = '正在核对本机篇章…'
       try {
         const inFlight = new Set(
-          [...stages.value.values()]
-            .filter((stage) => stage.state === 'D1_DOWNLOADING')
-            .map((stage) => stage.url),
+          [...stages.value.entries()]
+            .filter(([, stage]) => stage.state === 'D1_KEEPING')
+            .map(([url]) => url),
         )
         const result = await auditStoredTracks({
           skipUrls: inFlight,
           onProgress: (done, total) => {
-            if (done < total) auditNote.value = `正在校验第 ${done + 1}/${total} 首旧音频…`
+            if (done < total) auditNote.value = `正在核验第 ${done + 1}/${total} 篇旧文件…`
           },
         })
         auditNote.value = describeAudit(result)
@@ -253,6 +276,8 @@ export function useDownloads() {
     bookBusy,
     error,
     persisted,
+    auditing,
+    auditNote,
     stageFor,
     isDownloaded,
     isActive,
@@ -267,38 +292,35 @@ export function useDownloads() {
     dropAll,
     persist,
     audit,
-    auditing,
-    auditNote,
     refresh,
   }
 }
 
 function describeAudit(result: StoredAuditResult): string {
-  // Dangling records and orphan bytes are removed by the reconciliation step;
-  // they are just as much "a broken leftover" to the listener.
   const removed = result.cleaned + result.danglingRecords + result.orphanBytes
 
   if (result.remaining > 0) {
-    const parts = [`本次检查 ${result.checked} 首旧音频`]
-    if (removed > 0) parts.push(`清理 ${removed} 个损坏文件`)
-    parts.push(`还剩 ${result.remaining} 首，下次进入或点「核对账实」继续`)
+    const parts = [`本次核验 ${result.checked} 篇旧文件`]
+    if (removed > 0) parts.push(`清理 ${removed} 个残损文件`)
+    parts.push(`还剩 ${result.remaining} 篇，下次进入或点「核对账实」继续`)
     return parts.join('，')
   }
   if (removed > 0) {
-    return `已自动清理 ${removed} 个损坏或未下完的旧音频，请重新下载`
+    return `已自动清理 ${removed} 个残损或未留存的旧文件，请重新留存`
   }
   if (result.checked === 0) {
     return result.alreadyVerified > 0
-      ? `本机 ${result.alreadyVerified} 首音频均已校验，无需重算`
-      : '还没有下载内容'
+      ? `本机 ${result.alreadyVerified} 篇均已核实，无需重算`
+      : '还没有留存任何篇章'
   }
-  return `已校验 ${result.checked} 首旧音频，全部完好`
+  return `已核验 ${result.checked} 篇旧文件，全部完好`
 }
 
-/** Test seam. */
+/** 测试用。 */
 export function resetDownloads(): void {
   records.value = []
   stages.value = new Map()
+  bytes.value = new Map()
   usage.value = undefined
   error.value = undefined
   bookBusy.value = false

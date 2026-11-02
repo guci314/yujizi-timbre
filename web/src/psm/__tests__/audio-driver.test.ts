@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { PlayerContext, PlayerEvent } from '../../pim/player-model'
-import { initialPlayerContext } from '../../pim/player-model'
-import { AudioDriver, playbackFailureMessage, type AudioLike } from '../audio-driver'
+import { createAudioDriver, type AudioLike, type AudioHooks } from '../audio-driver'
+import type { PlayerTarget } from '../player-target'
 
 class FakeAudio implements AudioLike {
   src = ''
@@ -12,20 +11,22 @@ class FakeAudio implements AudioLike {
   crossOrigin: string | null = null
   playCalls = 0
   pauseCalls = 0
-  /** When set, `play()` rejects with this cause. */
-  rejectPlayWith: unknown
+  /** 让下一次 play() 拒绝。 */
+  rejectWith: unknown
   private readonly listeners = new Map<string, Array<() => void>>()
 
   play(): Promise<void> | void {
     this.playCalls += 1
-    if (this.rejectPlayWith !== undefined) return Promise.reject(this.rejectPlayWith)
+    if (this.rejectWith !== undefined) return Promise.reject(this.rejectWith)
     this.paused = false
     this.fire('play')
   }
 
   pause(): void {
     this.pauseCalls += 1
+    if (this.paused) return
     this.paused = true
+    this.fire('pause')
   }
 
   addEventListener(type: string, listener: () => void): void {
@@ -43,102 +44,156 @@ class FakeAudio implements AudioLike {
   }
 }
 
-const playingCtx: PlayerContext = {
-  ...initialPlayerContext(),
-  state: 'S4_PLAYING',
-  trackIndex: 1,
-  rate: 1.5,
+interface Recorded {
+  interrupted: string[]
+  failed: string[]
+  ended: number
 }
 
-function setup(): { audio: FakeAudio; driver: AudioDriver; events: PlayerEvent[] } {
+function setup(): { audio: FakeAudio; hooks: Recorded; driver: ReturnType<typeof createAudioDriver> } {
   const audio = new FakeAudio()
-  const events: PlayerEvent[] = []
-  const driver = new AudioDriver(audio, (event) => events.push(event))
-  driver.attach()
-  return { audio, driver, events }
+  const recorded: Recorded = { interrupted: [], failed: [], ended: 0 }
+  const hooks: AudioHooks = {
+    onInterrupted: (reason) => recorded.interrupted.push(reason),
+    onFailed: (message) => recorded.failed.push(message),
+    onChapterEnded: () => {
+      recorded.ended += 1
+    },
+  }
+  return { audio, hooks: recorded, driver: createAudioDriver(audio, hooks) }
 }
 
-describe('audio driver effects', () => {
-  it('loads a source and applies the rate', () => {
+function target(overrides: Partial<PlayerTarget> = {}): PlayerTarget {
+  return {
+    key: 'ddj#0',
+    source: 'https://example.test/1.m4a',
+    positionSec: 0,
+    speed: 1,
+    playing: false,
+    ...overrides,
+  }
+}
+
+describe('换篇章', () => {
+  it('换篇即换源，并按语速播放', () => {
     const { audio, driver } = setup()
-    driver.run([{ type: 'AUDIO_LOAD', url: 'https://example.test/1.m4a' }], playingCtx)
+    driver.sync(target({ key: 'ddj#1', positionSec: 0, speed: 1.5, playing: true }))
+
     expect(audio.src).toBe('https://example.test/1.m4a')
     expect(audio.playbackRate).toBe(1.5)
+    expect(audio.playCalls).toBe(1)
+    expect(audio.paused).toBe(false)
   })
 
-  it('seeks the element', () => {
+  it('静置时只换源不开播', () => {
     const { audio, driver } = setup()
-    driver.run([{ type: 'AUDIO_SEEK', time: 42 }], playingCtx)
-    expect(audio.currentTime).toBe(42)
-  })
-
-  it('ignores effects that belong to the store', () => {
-    const { audio, driver, events } = setup()
-    driver.run([{ type: 'PERSIST_PROGRESS', bookSlug: 'a', trackIndex: 0, currentTime: 1, duration: 2 }], playingCtx)
+    driver.sync(target({ playing: false }))
     expect(audio.playCalls).toBe(0)
-    expect(events).toEqual([])
   })
 })
 
-describe('audio driver events', () => {
-  it('translates metadata and time updates', () => {
-    const { audio, driver, events } = setup()
-    audio.duration = 123.4
-    audio.currentTime = 7
-    audio.fire('loadedmetadata')
+describe('定位防腐', () => {
+  it('目标位置未落定前不报任何位置（片头假 0 秒被挡住）', () => {
+    const { audio, driver } = setup()
+    driver.sync(target({ positionSec: 321, playing: true }))
+
+    // 元素刚换源，先乱报一个 0 秒；此时目标尚未落定，绝不能透传。
+    audio.currentTime = 0
     audio.fire('timeupdate')
-    expect(events).toEqual([
-      { type: 'E_META_LOADED', duration: 123.4 },
-      { type: 'E_TIME_UPDATE', time: 7 },
-    ])
-    void driver
+    expect(driver.position).toBeNull()
+
+    // 元数据到达后驱动器把位置对齐，再等 seeked 落定。
+    audio.fire('loadedmetadata')
+    audio.fire('seeked')
+    expect(driver.position).toBe(321)
   })
 
-  it('reports ended and media errors', () => {
-    const { audio, events } = setup()
-    audio.fire('ended')
-    audio.fire('error')
-    expect(events.map((event) => event.type)).toEqual(['E_AUDIO_ENDED', 'E_AUDIO_ERROR'])
+  it('从 0 秒开讲无需等待定位', () => {
+    const { audio, driver } = setup()
+    driver.sync(target({ positionSec: 0, playing: true }))
+    audio.currentTime = 0
+    audio.fire('timeupdate')
+    expect(driver.position).toBe(0)
   })
 
-  it('suppresses the pause it caused itself', () => {
-    const { audio, driver, events } = setup()
-    driver.run([{ type: 'AUDIO_PAUSE' }], playingCtx)
-    audio.fire('pause')
-    expect(events).toEqual([])
+  it('同一篇里大幅移步才重新定位', () => {
+    const { audio, driver } = setup()
+    driver.sync(target({ positionSec: 0, playing: true }))
+    audio.currentTime = 30
+    audio.fire('seeked')
+
+    driver.sync(target({ positionSec: 31, playing: true }))
+    expect(audio.currentTime).toBe(30)
+
+    driver.sync(target({ positionSec: 90, playing: true }))
+    expect(audio.currentTime).toBe(90)
   })
 
-  it('reports a pause the system caused', () => {
-    const { audio, events } = setup()
-    audio.fire('pause')
-    expect(events).toEqual([{ type: 'E_PAUSE_EXTERNAL' }])
-  })
-
-  it('turns a refusal into E_PLAY_BLOCKED, not an error', () => {
-    const { audio, driver, events } = setup()
-    audio.rejectPlayWith = Object.assign(new Error('blocked'), { name: 'NotAllowedError' })
-    driver.run([{ type: 'AUDIO_PLAY' }], playingCtx)
-    return Promise.resolve().then(() => {
-      expect(events).toEqual([{ type: 'E_PLAY_BLOCKED' }])
-    })
-  })
-
-  it('turns other play failures into E_AUDIO_ERROR', () => {
-    const { audio, driver, events } = setup()
-    audio.rejectPlayWith = new Error('decode failed')
-    driver.run([{ type: 'AUDIO_PLAY' }], playingCtx)
-    return Promise.resolve().then(() => {
-      expect(events).toEqual([{ type: 'E_AUDIO_ERROR', reason: '播放失败，请检查网络后重试' }])
-    })
+  it('时间流逝到目标附近即视为落定', () => {
+    const { audio, driver } = setup()
+    driver.sync(target({ positionSec: 60, playing: true }))
+    audio.currentTime = 60.4
+    audio.fire('timeupdate')
+    expect(driver.position).toBe(60.4)
   })
 })
 
-describe('playbackFailureMessage', () => {
-  it('stays quiet for a refused gesture', () => {
-    expect(playbackFailureMessage(Object.assign(new Error('x'), { name: 'NotAllowedError' }))).toBeUndefined()
+describe('暂停与打断', () => {
+  it('自己要求暂停不会被当成系统打断', () => {
+    const { audio, driver, hooks } = setup()
+    driver.sync(target({ positionSec: 0, playing: true }))
+    audio.currentTime = 5
+    audio.fire('seeked')
+
+    driver.sync(target({ positionSec: 5, playing: false }))
+    expect(audio.pauseCalls).toBe(1)
+    expect(hooks.interrupted).toEqual([])
   })
 
-  it('reports a real failure', () => {
-    expect(playbackFailureMessage(new Error('network'))).toBe('播放失败，请检查网络后重试')
+  it('系统暂停会通知上层收敛', () => {
+    const { audio, hooks } = setup()
+    audio.paused = false
+    audio.fire('pause')
+    expect(hooks.interrupted).toHaveLength(1)
+  })
+
+  it('无手势被拒时按打断处理', async () => {
+    const { audio, driver, hooks } = setup()
+    audio.rejectWith = Object.assign(new Error('blocked'), { name: 'NotAllowedError' })
+    driver.sync(target({ playing: true }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(hooks.interrupted).toHaveLength(1)
+    expect(hooks.failed).toEqual([])
+  })
+
+  it('真的放不出来时报告失败', async () => {
+    const { audio, driver, hooks } = setup()
+    audio.rejectWith = new Error('decode failed')
+    driver.sync(target({ playing: true }))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(hooks.failed).toEqual(['播放失败，请检查网络后重试'])
+  })
+})
+
+describe('篇章诵毕与出错', () => {
+  it('元素报结束时通知上层', () => {
+    const { audio, hooks } = setup()
+    audio.fire('ended')
+    expect(hooks.ended).toBe(1)
+  })
+
+  it('出错先就地重试，重试耗尽才报失败', () => {
+    const { audio, hooks, driver } = setup()
+    driver.sync(target({ playing: true }))
+    audio.currentTime = 0
+
+    audio.fire('error')
+    audio.fire('error')
+    expect(hooks.failed).toEqual([])
+
+    audio.fire('error')
+    expect(hooks.failed).toHaveLength(1)
   })
 })

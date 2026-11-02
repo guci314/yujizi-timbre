@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Bookmark } from '../core/domain'
 import { listBookmarks, removeBookmark } from '../core/bookmarks'
-import { formatTime } from '../pim/player-model'
+import { formatClock } from '../psm/format-clock'
 
 const router = useRouter()
 const grouped = ref<Record<string, Bookmark[]>>({})
@@ -69,7 +69,7 @@ onMounted(() => void refresh())
       <div v-for="item in group.items" :key="item.id" class="bookmark-row">
         <button class="bookmark-row__main" @click="openBookmark(item)">
           <span class="bookmark-row__label">{{ item.trackName }}</span>
-          <span class="bookmark-row__meta">{{ formatTime(item.currentTime) }} · 第 {{ item.trackIndex + 1 }} 章</span>
+          <span class="bookmark-row__meta">{{ formatClock(item.currentTime) }} · 第 {{ item.trackIndex + 1 }} 章</span>
         </button>
         <button class="link-button link-button--danger" @click="remove(item.id)">删除</button>
       </div>

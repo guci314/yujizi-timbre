@@ -4,12 +4,12 @@ import { useRouter } from 'vue-router'
 import { useLibrary } from '../psm/library-store'
 
 const router = useRouter()
-const { books, loading, offline, error, loadBooks } = useLibrary()
+const { specs, loading, offline, error, loadBooks } = useLibrary()
 
 onMounted(() => void loadBooks())
 
-function openBook(slug: string): void {
-  void router.push({ name: 'player', params: { slug } })
+function openBook(id: string): void {
+  void router.push({ name: 'player', params: { slug: id } })
 }
 </script>
 
@@ -22,13 +22,13 @@ function openBook(slug: string): void {
       <RouterLink class="link-button" :to="{ name: 'bookmarks' }">书签</RouterLink>
     </div>
 
-    <p v-if="offline && books.length > 0" class="badge">离线模式 · 显示本机缓存的书架</p>
+    <p v-if="offline && specs.length > 0" class="badge">离线模式 · 显示本机书箧</p>
     <p v-if="error" class="error-banner">{{ error }}</p>
-    <p v-else-if="loading && books.length === 0" class="empty-state">正在载入书架…</p>
-    <p v-else-if="books.length === 0" class="empty-state">书架是空的。</p>
+    <p v-else-if="loading && specs.length === 0" class="empty-state">正在载入书架…</p>
+    <p v-else-if="specs.length === 0" class="empty-state">书架是空的。</p>
 
     <div v-else class="book-grid">
-      <button v-for="book in books" :key="book.slug" class="book-card" @click="openBook(book.slug)">
+      <button v-for="book in specs" :key="book.id" class="book-card" @click="openBook(book.id)">
         <span class="book-card__cover">{{ book.title.slice(0, 1) }}</span>
         <span class="book-card__title">{{ book.title }}</span>
       </button>

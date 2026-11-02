@@ -7,7 +7,7 @@ import { useLibrary } from '../psm/library-store'
 
 const router = useRouter()
 const downloads = useDownloads()
-const { books, loadBooks } = useLibrary()
+const { specs, loadBooks } = useLibrary()
 
 /** Downloads grouped by book, largest first. */
 const groups = computed(() => {
@@ -53,7 +53,7 @@ onMounted(async () => {
     <div class="storage-card">
       <p class="storage-card__line">
         <strong>{{ formatBytes(downloads.totalBytes.value) }}</strong>
-        <span class="muted">音频已存到本机</span>
+        <span class="muted">篇章已收进本机书箧</span>
       </p>
       <div v-if="downloads.usageLabel.value" class="storage-meter" :aria-label="`存储已用 ${usedPercent}%`">
         <span class="storage-meter__fill" :style="{ width: `${Math.max(usedPercent, 1)}%` }" />
@@ -82,7 +82,7 @@ onMounted(async () => {
     <p v-if="downloads.error.value" class="error-banner">{{ downloads.error.value }}</p>
 
     <p v-if="groups.length === 0" class="empty-state">
-      还没有下载任何音频。在书本页面点「下载」保存单集，或点「下载整本」。
+      还没有留存任何篇章。在书页点「留存」保存单篇，或点「留存整卷」。
     </p>
 
     <template v-else>
@@ -91,7 +91,7 @@ onMounted(async () => {
           <button class="link-button" @click="router.push({ name: 'player', params: { slug: group.slug } })">
             {{ group.title }}
           </button>
-          <span class="muted">{{ group.count }} 集 · {{ formatBytes(group.bytes) }}</span>
+          <span class="muted">{{ group.count }} 篇 · {{ formatBytes(group.bytes) }}</span>
           <button class="link-button link-button--danger" :disabled="downloads.busy.value" @click="downloads.dropBook(group.slug)">
             清除
           </button>
@@ -102,7 +102,7 @@ onMounted(async () => {
         <button class="link-button link-button--danger" :disabled="downloads.busy.value" @click="downloads.dropAll()">
           清除全部下载
         </button>
-        <span class="muted">共 {{ books.length }} 本书可下载</span>
+        <span class="muted">共 {{ specs.length }} 卷可留存</span>
       </div>
     </template>
 

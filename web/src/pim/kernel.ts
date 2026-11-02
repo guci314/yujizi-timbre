@@ -1,38 +1,31 @@
 /**
- * Grid-Slot microkernel.
+ * Grid-Slot microkernel, business-only edition.
  *
- * A grid is a total function `(state, event) -> (state, effects)`: every state
- * has an explicit cell for every event, and a cell has no ambient access to the
- * browser. That total-ness is what lets the model checker below walk the graph
- * in memory and prove properties no amount of manual iPad testing could.
+ * A grid is a total function `(business state, business event) -> business
+ * state`. Cells return the next snapshot and nothing else: no effects, no
+ * platform instructions. Everything a machine must physically do is derived by
+ * the platform shell from the difference between two snapshots.
+ *
+ * That constraint is what lets a 52-cell model be replayed identically in
+ * TypeScript, Kotlin, or on paper.
  */
-
-/** A declarative instruction the platform shell must carry out. */
-export interface Effect {
-  readonly type: string
-}
 
 /** Contexts always carry their own state, so a cell cannot report a mismatch. */
 export interface Stateful<S extends string> {
   readonly state: S
 }
 
-export interface StepResult<C, F extends Effect> {
-  readonly ctx: C
-  readonly effects: readonly F[]
-}
-
-export type Cell<C, E extends { type: string }, F extends Effect> = (ctx: C, event: E) => StepResult<C, F>
+export type Cell<C, E extends { type: string }> = (ctx: C, event: E) => C
 
 /** A cell may be absent in the literal; the completeness audit finds it. */
-export type GridCells<S extends string, C, E extends { type: string }, F extends Effect> = {
-  readonly [K in S]: { readonly [T in E['type']]?: Cell<C, E, F> }
+export type GridCells<S extends string, C, E extends { type: string }> = {
+  readonly [K in S]: { readonly [T in E['type']]?: Cell<C, E> }
 }
 
-export interface Grid<S extends string, C, E extends { type: string }, F extends Effect> {
+export interface Grid<S extends string, C extends Stateful<S>, E extends { type: string }> {
   readonly states: readonly S[]
   readonly events: readonly E['type'][]
-  readonly cells: GridCells<S, C, E, F>
+  readonly cells: GridCells<S, C, E>
 }
 
 export class MissingCellError extends Error {
@@ -46,20 +39,20 @@ export class MissingCellError extends Error {
  * Apply one event. An undefined cell is a programming error, never a silent
  * no-op: silent no-ops are exactly how implicit state machines rot.
  */
-export function step<S extends string, C extends Stateful<S>, E extends { type: string }, F extends Effect>(
-  grid: Grid<S, C, E, F>,
+export function step<S extends string, C extends Stateful<S>, E extends { type: string }>(
+  grid: Grid<S, C, E>,
   ctx: C,
   event: E,
-): StepResult<C, F> {
-  const cells = grid.cells[ctx.state] as Record<string, Cell<C, E, F> | undefined>
+): C {
+  const cells = grid.cells[ctx.state] as Record<string, Cell<C, E> | undefined>
   const cell = cells[event.type]
   if (cell === undefined) throw new MissingCellError(ctx.state, event.type)
   return cell(ctx, event)
 }
 
-/** Every (state, event) pair the grid fails to define. I1 in one function. */
-export function missingCells<S extends string, C, E extends { type: string }, F extends Effect>(
-  grid: Grid<S, C, E, F>,
+/** Every (state, event) pair the grid fails to define. */
+export function missingCells<S extends string, C extends Stateful<S>, E extends { type: string }>(
+  grid: Grid<S, C, E>,
 ): Array<{ state: S; event: E['type'] }> {
   const missing: Array<{ state: S; event: E['type'] }> = []
   for (const state of grid.states) {
@@ -70,8 +63,8 @@ export function missingCells<S extends string, C, E extends { type: string }, F 
   return missing
 }
 
-export function assertComplete<S extends string, C, E extends { type: string }, F extends Effect>(
-  grid: Grid<S, C, E, F>,
+export function assertComplete<S extends string, C extends Stateful<S>, E extends { type: string }>(
+  grid: Grid<S, C, E>,
 ): void {
   const missing = missingCells(grid)
   if (missing.length > 0) {
@@ -81,15 +74,9 @@ export function assertComplete<S extends string, C, E extends { type: string }, 
 }
 
 /** A property every transition must satisfy. Return a message to fail. */
-export interface Invariant<S extends string, C extends Stateful<S>, E extends { type: string }, F extends Effect> {
+export interface Invariant<S extends string, C extends Stateful<S>, E extends { type: string }> {
   readonly id: string
-  check(input: {
-    readonly from: S
-    readonly event: E
-    readonly before: C
-    readonly after: C
-    readonly effects: readonly F[]
-  }): string | undefined
+  check(input: { readonly from: S; readonly event: E; readonly before: C; readonly after: C }): string | undefined
 }
 
 export interface Violation {
@@ -98,13 +85,13 @@ export interface Violation {
   readonly detail: string
 }
 
-export interface ModelCheckOptions<S extends string, C extends Stateful<S>, E extends { type: string }, F extends Effect> {
+export interface ModelCheckOptions<S extends string, C extends Stateful<S>, E extends { type: string }> {
   readonly initial: C
-  /** The finite event alphabet. Numeric payloads should be sampled, not continuous. */
+  /** The finite event alphabet. Numeric payloads are sampled, not continuous. */
   readonly events: readonly E[]
   /** Buckets contexts so the walk terminates. Must distinguish every field an invariant reads. */
   readonly keyOf: (ctx: C) => string
-  readonly invariants: readonly Invariant<S, C, E, F>[]
+  readonly invariants: readonly Invariant<S, C, E>[]
   readonly maxStates?: number
   readonly maxTrace?: number
   readonly maxViolations?: number
@@ -118,15 +105,15 @@ export interface ModelCheckReport<S extends string> {
 }
 
 /**
- * Breadth-first walk over the reachable context graph.
+ * Breadth-first walk over the reachable business-state graph.
  *
- * This is the whole point of the architecture: a listener's year of odd
- * interleavings (pause, sleep timer, late `ended`, network death, bookmark hop)
- * becomes a few thousand in-memory transitions that run in milliseconds.
+ * A listener's year of odd interleavings (pause, sleep timer, chapter end,
+ * bookmark hop) becomes a few thousand in-memory transitions that run in
+ * milliseconds.
  */
-export function modelCheck<S extends string, C extends Stateful<S>, E extends { type: string }, F extends Effect>(
-  grid: Grid<S, C, E, F>,
-  options: ModelCheckOptions<S, C, E, F>,
+export function modelCheck<S extends string, C extends Stateful<S>, E extends { type: string }>(
+  grid: Grid<S, C, E>,
+  options: ModelCheckOptions<S, C, E>,
 ): ModelCheckReport<S> {
   const maxStates = options.maxStates ?? 20000
   const maxTrace = options.maxTrace ?? 12
@@ -141,29 +128,23 @@ export function modelCheck<S extends string, C extends Stateful<S>, E extends { 
   while (queue.length > 0) {
     const node = queue.shift() as { ctx: C; trace: string[] }
     for (const event of options.events) {
-      const result = step(grid, node.ctx, event)
+      const after = step(grid, node.ctx, event)
       transitions += 1
-      reachable.add(result.ctx.state)
+      reachable.add(after.state)
       const trace = [...node.trace, event.type]
 
       for (const invariant of options.invariants) {
         if (violations.filter((entry) => entry.invariant === invariant.id).length >= maxViolations) continue
-        const detail = invariant.check({
-          from: node.ctx.state,
-          event,
-          before: node.ctx,
-          after: result.ctx,
-          effects: result.effects,
-        })
+        const detail = invariant.check({ from: node.ctx.state, event, before: node.ctx, after })
         if (detail !== undefined) violations.push({ invariant: invariant.id, trace, detail })
       }
 
       if (node.trace.length >= maxTrace) continue
-      const key = options.keyOf(result.ctx)
+      const key = options.keyOf(after)
       if (seen.has(key)) continue
       seen.add(key)
       if (seen.size > maxStates) continue
-      queue.push({ ctx: result.ctx, trace })
+      queue.push({ ctx: after, trace })
     }
   }
 

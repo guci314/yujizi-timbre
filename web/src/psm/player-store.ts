@@ -1,192 +1,253 @@
 /**
- * The single player store: one grid, one audio element, one source of truth.
+ * 播放器外壳：把纯业务网格的每一个快照，翻译成播放器动作 + 存档 + 锁屏面板。
  *
- * Views never mutate playback fields. They dispatch events and read the
- * projected context, so a stale local flag cannot contradict the grid.
+ * 视图只读这里的投影、只发业务事件。任何播放器怪癖都不许回流到 PIM。
  */
 
 import { computed, shallowRef, type ComputedRef, type ShallowRef } from 'vue'
-import type { BookDetail } from '../core/domain'
 import { step } from '../pim/kernel'
-import { PLAYER_GRID } from '../pim/player-grid'
+import { LISTENING_GRID } from '../pim/listening-grid'
 import {
-  initialPlayerContext,
+  initialListeningContext,
   SKIP_SECONDS,
-  trackOf,
-  type PlayerContext,
-  type PlayerEffect,
-  type PlayerEvent,
-  type SleepTimerOption,
-} from '../pim/player-model'
-import { AudioDriver, createAudioElement, type AudioFactory } from './audio-driver'
+  type BookSpec,
+  type ListeningContext,
+  type ListeningEvent,
+  type ListeningStateId,
+  type SleepMode,
+  type SleepOption,
+} from '../pim/listening-model'
+import { createAudioDriver, createAudioElement, type AudioDriver, type AudioFactory } from './audio-driver'
+import { resolveTrack } from './media-index'
+import { hearingKey, type PlayerTarget } from './player-target'
 import { persistProgress } from './storage-driver'
+import type { Progress } from '../core/domain'
+
+/** 播放中每走过这么多秒，落一次存档。节流是外壳的事，业务上位置每秒都在走。 */
+const SAVE_EVERY_SEC = 5
 
 export interface PlayerStore {
-  readonly ctx: Readonly<ShallowRef<PlayerContext>>
-  readonly book: ComputedRef<BookDetail | null>
-  readonly trackIndex: ComputedRef<number>
-  readonly trackName: ComputedRef<string>
-  readonly currentTime: ComputedRef<number>
-  readonly duration: ComputedRef<number>
-  readonly rate: ComputedRef<number>
+  readonly ctx: Readonly<ShallowRef<ListeningContext>>
+  readonly state: ComputedRef<ListeningStateId>
+  readonly book: ComputedRef<BookSpec | null>
+  readonly bookTitle: ComputedRef<string>
+  readonly chapterTitle: ComputedRef<string>
+  readonly chapterIndex: ComputedRef<number>
+  readonly positionSec: ComputedRef<number>
+  readonly chapterDuration: ComputedRef<number>
+  readonly speed: ComputedRef<number>
   readonly isPlaying: ComputedRef<boolean>
-  readonly isLoading: ComputedRef<boolean>
-  readonly error: ComputedRef<string | null>
+  readonly sleepMode: ComputedRef<SleepMode>
   readonly sleepRemaining: ComputedRef<number>
-  readonly sleepMode: ComputedRef<PlayerContext['sleepMode']>
+  readonly error: ComputedRef<string | null>
   readonly canNext: ComputedRef<boolean>
   readonly canPrevious: ComputedRef<boolean>
-  dispatch(event: PlayerEvent): void
-  /** Load a book's position without producing sound. Ignored unless idle. */
-  prepare(book: BookDetail, trackIndex: number, savedTime: number): void
-  /** Switch to a specific chapter and second, and start playing. */
-  playAt(book: BookDetail, trackIndex: number, startTime: number): void
+  dispatch(event: ListeningEvent): void
+  open(book: BookSpec, savedChapter: number, savedSec: number): void
+  jumpAndPlay(book: BookSpec, chapterIndex: number, startSec: number): void
   toggle(): void
   seek(seconds: number): void
   skip(delta: number): void
   next(): void
   previous(): void
-  setRate(rate: number): void
-  setSleep(option: SleepTimerOption | null): void
+  setSpeed(speed: number): void
+  setSleep(option: SleepOption | null): void
   dispose(): void
 }
 
 export interface PlayerStoreOptions {
   createAudio?: AudioFactory
-  /** Injected in tests so a fake clock can drive the tick. */
+  persist?: (progress: Progress) => Promise<unknown>
   autoTick?: boolean
 }
 
-function updateMediaSession(ctx: PlayerContext): void {
+const NOOP_PERSIST = async (): Promise<void> => undefined
+
+function updateMediaSession(ctx: ListeningContext): void {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
-  const session = navigator.mediaSession
+  const chapter = ctx.book?.chapters[ctx.chapterIndex]
   try {
     if (typeof MediaMetadata !== 'undefined') {
-      session.metadata = new MediaMetadata({
-        title: trackOf(ctx)?.name ?? ctx.book?.title ?? '',
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: chapter?.title ?? ctx.book?.title ?? '',
         artist: ctx.book?.title ?? '',
-        album: 'Timbre 听书',
+        album: '玉机子听书',
       })
     }
-    session.playbackState = ctx.state === 'S4_PLAYING' ? 'playing' : 'paused'
+    navigator.mediaSession.playbackState = ctx.state === 'S2_PLAYING' ? 'playing' : 'paused'
   } catch {
-    // Some browsers expose mediaSession but reject metadata; playback is unaffected.
-  }
-}
-
-function registerMediaSessionActions(store: PlayerStore): void {
-  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
-  const actions: Array<[MediaSessionAction, () => void]> = [
-    ['seekbackward', () => store.skip(-SKIP_SECONDS)],
-    ['seekforward', () => store.skip(SKIP_SECONDS)],
-  ]
-  for (const [action, handler] of actions) {
-    try {
-      navigator.mediaSession.setActionHandler(action, handler)
-    } catch {
-      // Not every platform implements every action.
-    }
+    // 有的环境有锁屏面板却拒绝写元数据，播放不受影响。
   }
 }
 
 export function createPlayerStore(options: PlayerStoreOptions = {}): PlayerStore {
-  const ctx = shallowRef<PlayerContext>(initialPlayerContext())
+  const ctx = shallowRef<ListeningContext>(initialListeningContext())
+  const error = shallowRef<string | null>(null)
   const audio = (options.createAudio ?? createAudioElement)()
+  const persist = options.persist ?? (persistProgress as (progress: Progress) => Promise<unknown>)
+  const timeline = options.persist === undefined ? persist : persist
   let disposed = false
   let ticker: ReturnType<typeof setInterval> | undefined
+  let lastSavedKey: string | null = null
+  let lastSavedPosition = 0
 
-  const driver = new AudioDriver(audio, (event) => store.dispatch(event))
+  const remember = (target: ListeningContext): void => {
+    const book = target.book
+    if (book === null) return
+    lastSavedKey = hearingKey(book.id, target.chapterIndex)
+    lastSavedPosition = target.positionSec
+    void timeline({
+      bookSlug: book.id,
+      trackIndex: target.chapterIndex,
+      currentTime: Math.max(0, Math.floor(target.positionSec)),
+      updatedAt: Date.now(),
+    }).catch(() => undefined)
+  }
 
-  function applyEffects(effects: readonly PlayerEffect[], next: PlayerContext): void {
-    driver.run(effects, next)
-    for (const effect of effects) {
-      switch (effect.type) {
-        case 'PERSIST_PROGRESS':
-          void persistProgress({
-            bookSlug: effect.bookSlug,
-            trackIndex: effect.trackIndex,
-            currentTime: effect.currentTime,
-            updatedAt: Date.now(),
-          }).catch(() => undefined)
-          break
-        case 'MEDIA_SESSION_UPDATE':
-          updateMediaSession(next)
-          break
-        default:
-          break
-      }
+  const driver: AudioDriver = createAudioDriver(audio, {
+    onInterrupted: () => {
+      // 系统打断（来电、拔耳机、无手势被拒）：按听众按下暂停收敛。
+      if (ctx.value.state === 'S2_PLAYING') store.dispatch({ type: 'E_TOGGLE_PLAY' })
+    },
+    onFailed: (message) => {
+      error.value = message
+      if (ctx.value.state === 'S2_PLAYING') store.dispatch({ type: 'E_TOGGLE_PLAY' })
+    },
+    onChapterEnded: () => {
+      const duration = driver.duration
+      if (ctx.value.state !== 'S2_PLAYING') return
+      store.dispatch({
+        type: 'E_SECOND_ELAPSED',
+        currentPositionSec: duration > 0 ? duration : ctx.value.positionSec + 1,
+        ...(duration > 0 ? { chapterDurationSec: duration } : {}),
+      })
+    },
+  })
+
+  function targetFor(next: ListeningContext): PlayerTarget {
+    const book = next.book
+    if (book === null) return { key: null, source: null, positionSec: 0, speed: next.speed, playing: false }
+    const track = resolveTrack(book.id, next.chapterIndex)
+    return {
+      key: hearingKey(book.id, next.chapterIndex),
+      source: track?.url ?? null,
+      positionSec: next.positionSec,
+      speed: next.speed,
+      playing: next.state === 'S2_PLAYING',
     }
   }
 
-  function dispatch(event: PlayerEvent): void {
-    if (disposed) return
-    const result = step(PLAYER_GRID, ctx.value, event)
-    ctx.value = result.ctx
-    applyEffects(result.effects, result.ctx)
+  function sync(previous: ListeningContext, next: ListeningContext): void {
+    const previousKey = hearingKey(previous.book?.id, previous.chapterIndex)
+    const nextKey = hearingKey(next.book?.id, next.chapterIndex)
+
+    if (previousKey !== nextKey && previousKey !== null) remember(previous)
+    if (previous.state === 'S2_PLAYING' && next.state !== 'S2_PLAYING') remember(next)
+
+    driver.sync(targetFor(next))
+
+    if (previousKey !== nextKey || previous.state !== next.state || previous.speed !== next.speed) {
+      updateMediaSession(next)
+    }
   }
 
   const store: PlayerStore = {
     ctx,
+    state: computed(() => ctx.value.state),
     book: computed(() => ctx.value.book),
-    trackIndex: computed(() => ctx.value.trackIndex),
-    trackName: computed(() => trackOf(ctx.value)?.name ?? ''),
-    currentTime: computed(() => ctx.value.currentTime),
-    duration: computed(() => ctx.value.duration),
-    rate: computed(() => ctx.value.rate),
-    isPlaying: computed(() => ctx.value.state === 'S4_PLAYING'),
-    isLoading: computed(() => ctx.value.state === 'S1_LOADING_PAUSED' || ctx.value.state === 'S2_LOADING_PLAY'),
-    error: computed(() => ctx.value.errorMessage),
-    sleepRemaining: computed(() => ctx.value.sleepRemainingSec),
+    bookTitle: computed(() => ctx.value.book?.title ?? ''),
+    chapterTitle: computed(() => ctx.value.book?.chapters[ctx.value.chapterIndex]?.title ?? ''),
+    chapterIndex: computed(() => ctx.value.chapterIndex),
+    positionSec: computed(() => ctx.value.positionSec),
+    chapterDuration: computed(() => ctx.value.book?.chapters[ctx.value.chapterIndex]?.durationSec ?? 0),
+    speed: computed(() => ctx.value.speed),
+    isPlaying: computed(() => ctx.value.state === 'S2_PLAYING'),
     sleepMode: computed(() => ctx.value.sleepMode),
+    sleepRemaining: computed(() => ctx.value.sleepRemainingSec),
+    error: computed(() => error.value),
     canNext: computed(() => {
       const book = ctx.value.book
-      return book !== null && ctx.value.trackIndex + 1 < book.tracks.length
+      return book !== null && ctx.value.chapterIndex + 1 < book.chapters.length
     }),
-    canPrevious: computed(() => ctx.value.trackIndex > 0),
-    dispatch,
-    prepare(book, trackIndex, savedTime) {
-      dispatch({ type: 'E_PREPARE_BOOK', book, trackIndex, savedTime })
+    canPrevious: computed(() => ctx.value.chapterIndex > 0),
+
+    dispatch(event) {
+      if (disposed) return
+      const previous = ctx.value
+      const next = step(LISTENING_GRID, previous, event)
+      ctx.value = next
+      sync(previous, next)
+
+      // 业务上要诵读，可这一篇本机取不到来源：如实告诉听众，并收敛回静置。
+      if (next.state === 'S2_PLAYING' && next.book !== null) {
+        if (resolveTrack(next.book.id, next.chapterIndex) === undefined) {
+          error.value = '这一篇暂时取不到声音，联网后再试'
+          store.dispatch({ type: 'E_TOGGLE_PLAY' })
+        } else {
+          error.value = null
+        }
+      }
     },
-    playAt(book, trackIndex, startTime) {
-      dispatch({ type: 'E_PLAY_AT', book, trackIndex, startTime })
+
+    open(book, savedChapter, savedSec) {
+      store.dispatch({ type: 'E_OPEN_BOOK', book, savedChapter, savedSec })
+    },
+    jumpAndPlay(book, chapterIndex, startSec) {
+      store.dispatch({ type: 'E_JUMP_AND_PLAY', book, chapterIndex, startSec })
     },
     toggle() {
-      dispatch({ type: 'E_TOGGLE' })
+      store.dispatch({ type: 'E_TOGGLE_PLAY' })
     },
     seek(seconds) {
-      dispatch({ type: 'E_SEEK', time: seconds })
+      store.dispatch({ type: 'E_SEEK', targetSec: seconds })
     },
     skip(delta) {
-      dispatch({ type: 'E_SEEK', time: ctx.value.currentTime + delta })
+      store.dispatch({ type: 'E_SEEK', targetSec: ctx.value.positionSec + delta })
     },
     next() {
-      dispatch({ type: 'E_NEXT' })
+      store.dispatch({ type: 'E_NEXT_CHAPTER' })
     },
     previous() {
-      dispatch({ type: 'E_PREV' })
+      store.dispatch({ type: 'E_PREV_CHAPTER' })
     },
-    setRate(rate) {
-      dispatch({ type: 'E_SET_RATE', rate })
+    setSpeed(speed) {
+      store.dispatch({ type: 'E_SET_PREF', speed })
     },
     setSleep(option) {
-      dispatch({ type: 'E_SET_SLEEP', option })
+      store.dispatch({ type: 'E_SET_PREF', sleepOption: option })
     },
     dispose() {
       if (disposed) return
       disposed = true
-      detach()
       if (ticker !== undefined) clearInterval(ticker)
       ticker = undefined
+      driver.dispose()
     },
   }
 
-  const detach = driver.attach()
-  registerMediaSessionActions(store)
-
-  // The grid ignores ticks outside S4, so an always-on ticker is honest: pausing
-  // really does freeze the countdown, rather than the timer being switched off.
+  // 一秒一跳：只有诵读中这一步才推进播放头与睡眠倒计时，其余状态网格自己忽略。
   if (options.autoTick !== false && typeof setInterval === 'function') {
-    ticker = setInterval(() => dispatch({ type: 'E_TICK_1S' }), 1_000)
+    ticker = setInterval(() => {
+      if (ctx.value.state !== 'S2_PLAYING') return
+      const position = driver.position
+      const duration = driver.duration
+      store.dispatch({
+        type: 'E_SECOND_ELAPSED',
+        currentPositionSec: position ?? ctx.value.positionSec,
+        ...(duration > 0 ? { chapterDurationSec: duration } : {}),
+      })
+
+      const key = hearingKey(ctx.value.book?.id, ctx.value.chapterIndex)
+      if (
+        ctx.value.state === 'S2_PLAYING' &&
+        key !== lastSavedKey &&
+        key !== null
+      ) {
+        remember(ctx.value)
+      } else if (ctx.value.state === 'S2_PLAYING' && Math.abs(ctx.value.positionSec - lastSavedPosition) >= SAVE_EVERY_SEC) {
+        remember(ctx.value)
+      }
+    }, 1_000)
   }
 
   return store
@@ -195,12 +256,19 @@ export function createPlayerStore(options: PlayerStoreOptions = {}): PlayerStore
 let singleton: PlayerStore | undefined
 
 export function usePlayer(): PlayerStore {
-  singleton ??= createPlayerStore()
+  if (singleton === undefined) {
+    const store = createPlayerStore()
+    singleton = store
+    return store
+  }
   return singleton
 }
 
-/** Test seam: drop the singleton so each test gets a fresh grid and audio element. */
+/** 测试用：丢弃单例，下一次拿到全新网格与播放器。 */
 export function resetPlayerStore(): void {
   singleton?.dispose()
   singleton = undefined
 }
+
+export { SKIP_SECONDS }
+export const NOOP_PERSISTENCE = NOOP_PERSIST

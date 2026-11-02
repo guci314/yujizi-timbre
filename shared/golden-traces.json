@@ -1,0 +1,4097 @@
+{
+  "version": 1,
+  "comment": "玉机子听书纯业务 PIM 黄金考卷：由 web/src/pim 生成，Android JUnit 与 Web Vitest 共用。事件里的 bookId 对应 books。",
+  "books": [
+    {
+      "id": "ddj",
+      "title": "道德经",
+      "chapters": [
+        {
+          "index": 0,
+          "title": "道德经第1篇",
+          "durationSec": 100
+        },
+        {
+          "index": 1,
+          "title": "道德经第2篇",
+          "durationSec": 100
+        },
+        {
+          "index": 2,
+          "title": "道德经第3篇",
+          "durationSec": 100
+        }
+      ]
+    },
+    {
+      "id": "zz",
+      "title": "庄子",
+      "chapters": [
+        {
+          "index": 0,
+          "title": "庄子第1篇",
+          "durationSec": 100
+        },
+        {
+          "index": 1,
+          "title": "庄子第2篇",
+          "durationSec": 100
+        }
+      ]
+    }
+  ],
+  "listening": {
+    "states": [
+      "S0_IDLE",
+      "S1_PAUSED",
+      "S2_PLAYING",
+      "S3_SLEEP_STOPPED"
+    ],
+    "events": [
+      "E_OPEN_BOOK",
+      "E_JUMP_AND_PLAY",
+      "E_TOGGLE_PLAY",
+      "E_SEEK",
+      "E_NEXT_CHAPTER",
+      "E_PREV_CHAPTER",
+      "E_SET_PREF",
+      "E_SECOND_ELAPSED"
+    ],
+    "cells": 32,
+    "initial": {
+      "state": "S0_IDLE",
+      "bookId": null,
+      "chapterIndex": 0,
+      "positionSec": 0,
+      "speed": 1,
+      "sleepMode": "off",
+      "sleepRemainingSec": 0,
+      "chapterDurationSec": 0
+    },
+    "traces": [
+      {
+        "id": "L-格-S0_IDLE-E_OPEN_BOOK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "zz",
+              "savedChapter": 1,
+              "savedSec": 7
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "zz",
+              "chapterIndex": 1,
+              "positionSec": 4,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S0_IDLE-E_JUMP_AND_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 42
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 42,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S0_IDLE-E_TOGGLE_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_TOGGLE_PLAY"
+            },
+            "expect": {
+              "state": "S0_IDLE",
+              "bookId": null,
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S0_IDLE-E_SEEK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_SEEK",
+              "targetSec": 37
+            },
+            "expect": {
+              "state": "S0_IDLE",
+              "bookId": null,
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S0_IDLE-E_NEXT_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_NEXT_CHAPTER"
+            },
+            "expect": {
+              "state": "S0_IDLE",
+              "bookId": null,
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S0_IDLE-E_PREV_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_PREV_CHAPTER"
+            },
+            "expect": {
+              "state": "S0_IDLE",
+              "bookId": null,
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S0_IDLE-E_SET_PREF",
+        "steps": [
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "speed": 1.25,
+              "sleepOption": {
+                "kind": "minutes",
+                "minutes": 12
+              }
+            },
+            "expect": {
+              "state": "S0_IDLE",
+              "bookId": null,
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1.25,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 720,
+              "chapterDurationSec": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S0_IDLE-E_SECOND_ELAPSED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 99,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S0_IDLE",
+              "bookId": null,
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_OPEN_BOOK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "zz",
+              "savedChapter": 1,
+              "savedSec": 7
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_JUMP_AND_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 42
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 42,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_TOGGLE_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_TOGGLE_PLAY"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_SEEK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SEEK",
+              "targetSec": 37
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 37,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_NEXT_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_NEXT_CHAPTER"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_PREV_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_PREV_CHAPTER"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_SET_PREF",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "speed": 1.25,
+              "sleepOption": {
+                "kind": "minutes",
+                "minutes": 12
+              }
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1.25,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 720,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S1_PAUSED-E_SECOND_ELAPSED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 99,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_OPEN_BOOK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "zz",
+              "savedChapter": 1,
+              "savedSec": 7
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_JUMP_AND_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 42
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 42,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_TOGGLE_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_TOGGLE_PLAY"
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_SEEK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SEEK",
+              "targetSec": 37
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 37,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_NEXT_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_NEXT_CHAPTER"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_PREV_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_PREV_CHAPTER"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_SET_PREF",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "speed": 1.25,
+              "sleepOption": {
+                "kind": "minutes",
+                "minutes": 12
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1.25,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 720,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S2_PLAYING-E_SECOND_ELAPSED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 10
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 99,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_OPEN_BOOK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "zz",
+              "savedChapter": 1,
+              "savedSec": 7
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_JUMP_AND_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 42
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 42,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_TOGGLE_PLAY",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_TOGGLE_PLAY"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_SEEK",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SEEK",
+              "targetSec": 37
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 37,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_NEXT_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_NEXT_CHAPTER"
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_PREV_CHAPTER",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_PREV_CHAPTER"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_SET_PREF",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "speed": 1.25,
+              "sleepOption": {
+                "kind": "minutes",
+                "minutes": 12
+              }
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1.25,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 720,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-格-S3_SLEEP_STOPPED-E_SECOND_ELAPSED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 99,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-展卷回退三秒",
+        "steps": [
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "ddj",
+              "savedChapter": 1,
+              "savedSec": 42
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-点书签精准跳秒",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 42
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 42,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-翻看别书不打断诵读",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "startSec": 30
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 30,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_OPEN_BOOK",
+              "bookId": "zz",
+              "savedChapter": 0,
+              "savedSec": 0
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 30,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-章尾自动续章",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 0,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-全书诵毕回静置",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-本章诵毕即止息",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 1,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-暂停时睡眠倒计时冻结",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "startSec": 5
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "minutes",
+                "minutes": 1
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 60,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_TOGGLE_PLAY"
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 60,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 6,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 60,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 12,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 60,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 18,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 60,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-睡眠到点止息",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "startSec": 5
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "minutes",
+                "minutes": 1
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 60,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 1,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 1,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 59,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 2,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 2,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 58,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 3,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 3,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 57,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 4,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 4,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 56,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 5,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 5,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 55,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 6,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 6,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 54,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 7,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 7,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 53,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 8,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 8,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 52,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 9,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 9,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 51,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 10,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 10,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 50,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 11,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 11,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 49,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 12,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 12,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 48,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 13,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 13,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 47,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 14,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 14,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 46,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 15,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 15,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 45,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 16,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 16,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 44,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 17,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 17,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 43,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 18,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 18,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 42,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 19,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 19,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 41,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 20,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 20,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 40,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 21,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 21,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 39,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 22,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 22,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 38,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 23,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 23,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 37,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 24,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 24,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 36,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 25,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 25,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 35,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 26,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 26,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 34,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 27,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 27,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 33,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 28,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 28,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 32,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 29,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 29,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 31,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 30,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 30,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 30,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 31,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 31,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 29,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 32,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 32,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 28,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 33,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 33,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 27,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 34,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 34,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 26,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 35,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 35,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 25,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 36,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 36,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 24,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 37,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 37,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 23,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 38,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 38,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 22,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 39,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 39,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 21,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 40,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 40,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 20,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 41,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 41,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 19,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 42,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 42,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 18,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 43,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 43,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 17,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 44,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 44,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 16,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 45,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 45,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 15,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 46,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 46,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 14,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 47,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 47,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 13,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 48,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 48,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 12,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 49,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 49,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 11,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 50,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 50,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 10,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 51,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 51,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 9,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 52,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 52,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 8,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 53,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 53,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 7,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 54,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 54,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 6,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 55,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 55,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 5,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 56,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 56,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 4,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 57,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 57,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 3,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 58,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 58,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 2,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 59,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 59,
+              "speed": 1,
+              "sleepMode": "minutes",
+              "sleepRemainingSec": 1,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 60,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "positionSec": 60,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-止息后主动开讲唤醒",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_TOGGLE_PLAY"
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      },
+      {
+        "id": "L-止息后移步回到静置",
+        "steps": [
+          {
+            "event": {
+              "type": "E_JUMP_AND_PLAY",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "startSec": 99
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SET_PREF",
+              "sleepOption": {
+                "kind": "end-of-chapter"
+              }
+            },
+            "expect": {
+              "state": "S2_PLAYING",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 99,
+              "speed": 1,
+              "sleepMode": "end-of-chapter",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SECOND_ELAPSED",
+              "currentPositionSec": 100,
+              "chapterDurationSec": 100
+            },
+            "expect": {
+              "state": "S3_SLEEP_STOPPED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 100,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          },
+          {
+            "event": {
+              "type": "E_SEEK",
+              "targetSec": 20
+            },
+            "expect": {
+              "state": "S1_PAUSED",
+              "bookId": "ddj",
+              "chapterIndex": 2,
+              "positionSec": 20,
+              "speed": 1,
+              "sleepMode": "off",
+              "sleepRemainingSec": 0,
+              "chapterDurationSec": 100
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "retention": {
+    "states": [
+      "D0_NOT_KEPT",
+      "D1_KEEPING",
+      "D2_KEPT",
+      "D3_FAILED"
+    ],
+    "events": [
+      "E_REQUEST_KEEP",
+      "E_KEEP_PROGRESS",
+      "E_VERIFIED_COMPLETE",
+      "E_KEEP_FAILED",
+      "E_RELEASE"
+    ],
+    "cells": 20,
+    "initial": {
+      "bookId": "ddj",
+      "chapterIndex": 0
+    },
+    "traces": [
+      {
+        "id": "R-格-D0_NOT_KEPT-E_REQUEST_KEEP",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D0_NOT_KEPT-E_KEEP_PROGRESS",
+        "steps": [
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 65
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D0_NOT_KEPT-E_VERIFIED_COMPLETE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 8192
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D0_NOT_KEPT-E_KEEP_FAILED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SPACE_FULL"
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D0_NOT_KEPT-E_RELEASE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_RELEASE"
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D1_KEEPING-E_REQUEST_KEEP",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 40
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 40,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 40,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D1_KEEPING-E_KEEP_PROGRESS",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 40
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 40,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 65
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 65,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D1_KEEPING-E_VERIFIED_COMPLETE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 40
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 40,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 8192
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 8192,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D1_KEEPING-E_KEEP_FAILED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 40
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 40,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SPACE_FULL"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SPACE_FULL"
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D1_KEEPING-E_RELEASE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 40
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 40,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_RELEASE"
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D2_KEPT-E_REQUEST_KEEP",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D2_KEPT-E_KEEP_PROGRESS",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 65
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D2_KEPT-E_VERIFIED_COMPLETE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 8192
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D2_KEPT-E_KEEP_FAILED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SPACE_FULL"
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D2_KEPT-E_RELEASE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_RELEASE"
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D3_FAILED-E_REQUEST_KEEP",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SOURCE_UNREACHABLE"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SOURCE_UNREACHABLE"
+            }
+          },
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D3_FAILED-E_KEEP_PROGRESS",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SOURCE_UNREACHABLE"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SOURCE_UNREACHABLE"
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 65
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SOURCE_UNREACHABLE"
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D3_FAILED-E_VERIFIED_COMPLETE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SOURCE_UNREACHABLE"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SOURCE_UNREACHABLE"
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 8192
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SOURCE_UNREACHABLE"
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D3_FAILED-E_KEEP_FAILED",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SOURCE_UNREACHABLE"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SOURCE_UNREACHABLE"
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SPACE_FULL"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SPACE_FULL"
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-格-D3_FAILED-E_RELEASE",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SOURCE_UNREACHABLE"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SOURCE_UNREACHABLE"
+            }
+          },
+          {
+            "event": {
+              "type": "E_RELEASE"
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-整篇留存",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 30
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 30,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 100
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-留存未果再重试",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "CONTENT_CORRUPTED"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "CONTENT_CORRUPTED"
+            }
+          },
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 2048
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 2048,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-未留存的迟到完好不入箧",
+        "steps": [
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-未果的迟到完好不入箧",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_FAILED",
+              "reason": "SPACE_FULL"
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SPACE_FULL"
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D3_FAILED",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": "SPACE_FULL"
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-留存中释出",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_KEEP_PROGRESS",
+              "pct": 80
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 80,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_RELEASE"
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      },
+      {
+        "id": "R-释出即净",
+        "steps": [
+          {
+            "event": {
+              "type": "E_REQUEST_KEEP"
+            },
+            "expect": {
+              "state": "D1_KEEPING",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_VERIFIED_COMPLETE",
+              "space": 4096
+            },
+            "expect": {
+              "state": "D2_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 100,
+              "occupiedSpace": 4096,
+              "failReason": null
+            }
+          },
+          {
+            "event": {
+              "type": "E_RELEASE"
+            },
+            "expect": {
+              "state": "D0_NOT_KEPT",
+              "bookId": "ddj",
+              "chapterIndex": 0,
+              "progressPct": 0,
+              "occupiedSpace": 0,
+              "failReason": null
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

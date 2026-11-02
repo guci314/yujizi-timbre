@@ -12,13 +12,18 @@ specific to this subtree.
 ## Architecture
 
 - Three layers, one direction of dependency: `views/` → `psm/` → `pim/`, plus `core/` for data access.
-- `pim/` is pure: no DOM, no Vue, no IndexedDB, no `fetch`. A grid is a total `(state, event) -> (ctx, effects)` table;
-  slots return `Effect[]` instead of calling the platform. Do not import `vue` or `psm/` from `pim/`.
-- `psm/` owns the platform: the `<audio>` element (`audio-driver.ts`), IndexedDB/Cache Storage (`storage-driver.ts`),
-  and the singleton stores. Views never hold playback flags of their own.
-- `views/` only reads the projected state and dispatches events. If a view needs a new behaviour, add an event and a cell.
-- The playback table is `pim/player-grid.ts` (7 states x 16 events). Adding an event means adding a cell to **every**
-  state; `pnpm test` fails on a missing one, by design.
+- `pim/` is the **pure business model**, shared verbatim with the Android app. It knows only 经卷/篇章/位置/语速/睡眠香/留存:
+  no DOM, no Vue, no IndexedDB, no `fetch`, no media element, no addresses, no hashing. A grid is a total
+  `(business state, business event) -> business state` table; cells return a snapshot and never an instruction.
+  Banned words in this tree: `E_META_LOADED`, `seekPending`, `AUDIO_*`, `PERSIST_PROGRESS`, `url`, `pageUrl`,
+  `STORE_BYTES`, `INDEX_RECORD`, `MEDIA_SESSION_*`. If a rule needs one of them, it belongs in `psm/`.
+- Two grids: `pim/listening-grid.ts` (4 states x 8 events = 32 cells) and `pim/retention-grid.ts` (4 x 5 = 20).
+  Adding an event means adding a cell to **every** state; `pnpm test` fails on a missing one, by design.
+- `psm/` owns every platform quirk: `audio-driver.ts` keeps `pendingSeek` so a pre-metadata `timeupdate(0)` never
+  reaches the model, `player-store.ts` diffs snapshots into play/pause/seek/save/lock-screen, and `storage-driver.ts`
+  does fetch → verify → bytes → index → rollback. Views never hold playback flags of their own.
+- `shared/golden-traces.json` is the cross-platform contract: generated from both grids, replayed here and by the
+  Android JUnit suite. Regenerate with `UPDATE_GOLDEN=1 pnpm vitest run src/pim/__tests__/golden-traces.test.ts`.
 
 ## Commands
 
