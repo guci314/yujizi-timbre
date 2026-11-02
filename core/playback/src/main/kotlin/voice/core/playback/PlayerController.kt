@@ -196,6 +196,11 @@ class PlayerController(
     controller.play()
   }
 
+  /** 明确停下（睡眠到点、书卷诵毕）：与 playPause 的语义无关。 */
+  fun pause() = executeAfterPrepare { controller ->
+    controller.pause()
+  }
+
   fun playPause() = executeAfterPrepare { controller ->
     if (controller.isPlaying) {
       controller.pause()

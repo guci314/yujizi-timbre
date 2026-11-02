@@ -290,6 +290,43 @@ describe('黄金考卷导出', () => {
   })
 })
 
+/** 老静态站 musicplayer.js 暴露的形式模型内核（形状与 TS PIM 一致）。 */
+interface LegacyKernel {
+  initialListeningContext(): unknown
+  stepListeningGrid(ctx: unknown, event: unknown): unknown
+  listeningSnapshot(ctx: unknown): unknown
+}
+
+/** TS 事件 → 老网页版事件（书对象直接内联，其余字段同名）。 */
+function toLegacyEvent(event: ListeningEvent): Record<string, unknown> {
+  switch (event.type) {
+    case 'E_OPEN_BOOK':
+      return { type: event.type, book: event.book, savedChapter: event.savedChapter, savedSec: event.savedSec }
+    case 'E_JUMP_AND_PLAY':
+      return { type: event.type, book: event.book, chapterIndex: event.chapterIndex, startSec: event.startSec }
+    case 'E_SET_PREF':
+      return {
+        type: event.type,
+        ...(event.speed === undefined ? {} : { speed: event.speed }),
+        ...(event.sleepOption === undefined ? {} : { sleepOption: event.sleepOption }),
+      }
+    case 'E_SECOND_ELAPSED':
+      return {
+        type: event.type,
+        ...(event.currentPositionSec === undefined ? {} : { currentPositionSec: event.currentPositionSec }),
+        ...(event.chapterDurationSec === undefined ? {} : { chapterDurationSec: event.chapterDurationSec }),
+      }
+    case 'E_SEEK':
+      return {
+        type: event.type,
+        targetSec: event.targetSec,
+        ...(event.chapterDurationSec === undefined ? {} : { chapterDurationSec: event.chapterDurationSec }),
+      }
+    default:
+      return { type: event.type }
+  }
+}
+
 describe('黄金考卷回放', () => {
   const byId = new Map(books.map((b) => [b.id, b]))
 
@@ -301,6 +338,32 @@ describe('黄金考卷回放', () => {
         expect(listeningSnapshot(ctx), `${trace.id} 在 ${entry.event.type} 之后`).toEqual(entry.expect)
       }
     }
+  })
+
+  it('老网页版 musicplayer.js 的内核与黄金考卷逐格一致', () => {
+    const legacyPath = path.resolve(here, '../../yujizi/js/musicplayer.js')
+    const source = readFileSync(legacyPath, 'utf8')
+    // 文件顶部先挂出 __YUJIZI_FM__，其后是依赖真实页面的旧播放器代码；
+    // 在 jsdom 里跑，后者会在取不到 DOM 时抛错，属预期。
+    try {
+      new Function(source)()
+    } catch {
+      // 旧播放器需要页面里的 <select>/<audio>，这里只取形式模型。
+    }
+    const fm = (globalThis as unknown as { __YUJIZI_FM__?: LegacyKernel }).__YUJIZI_FM__
+    expect(fm).toBeDefined()
+
+    let steps = 0
+    for (const trace of golden.listening.traces) {
+      let ctx: unknown = fm!.initialListeningContext()
+      for (const entry of trace.steps) {
+        const event = decodeListening(entry.event, byId)
+        ctx = fm!.stepListeningGrid(ctx, toLegacyEvent(event))
+        expect(fm!.listeningSnapshot(ctx), `${trace.id} 在 ${event.type} 之后`).toEqual(entry.expect)
+        steps += 1
+      }
+    }
+    expect(steps).toBeGreaterThanOrEqual(100)
   })
 
   it('书箧考卷逐格对得上', () => {

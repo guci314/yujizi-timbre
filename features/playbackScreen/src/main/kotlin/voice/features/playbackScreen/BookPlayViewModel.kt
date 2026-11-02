@@ -42,6 +42,9 @@ import voice.core.playback.misc.Decibel
 import voice.core.playback.misc.VolumeGain
 import voice.core.playback.overlay
 import voice.core.playback.pim.ListeningState
+import voice.core.playback.pim.SleepChange
+import voice.core.playback.pim.SleepMode
+import voice.core.playback.pim.SleepOption
 import voice.core.playback.playstate.PlayStateManager
 import voice.core.playback.servo.ListeningSession
 import voice.core.sleeptimer.SleepTimer
@@ -109,9 +112,23 @@ class BookPlayViewModel(
     }
     scope.launch {
       // 播放状态的权威来源：睡眠香到点、耳机、系统焦点只改 playStateFlow。
-      combine(currentBookStoreId.data, playStateManager.playStateFlow) { id, playState -> id to playState }
-        .collect { (id, playState) ->
-          session.syncExternalPlayState(id, playState == PlayStateManager.PlayState.Playing)
+      combine(
+        currentBookStoreId.data,
+        playStateManager.playStateFlow,
+        sleepTimer.state,
+      ) { id, playState, sleepState -> Triple(id, playState, sleepState) }
+        .collect { (id, playState, sleepState) ->
+          val playing = playState == PlayStateManager.PlayState.Playing
+          val ctx = session.state.value
+          // 到点止息：播放器停了、睡眠香已熄火、网格还在诵读 —— 让网格自己走到 S3。
+          if (!playing &&
+            sleepState is SleepTimerState.Disabled &&
+            ctx.state == ListeningState.S2_PLAYING &&
+            ctx.sleepMode != SleepMode.OFF
+          ) {
+            loadBook(bookId)?.let { session.sleepTimerElapsed(it) }
+          }
+          session.syncExternalPlayState(id, playing)
         }
     }
     scope.launch {
@@ -343,6 +360,7 @@ class BookPlayViewModel(
         )
       }
       sleepTimer.enable(TimedWithDuration(time.minutes))
+      loadBook(bookId)?.let { session.setSleep(it, SleepChange.Set(SleepOption.Minutes(time))) }
       null
     }
   }
@@ -350,6 +368,7 @@ class BookPlayViewModel(
   fun onAcceptSleepAtEndOfChapter() {
     updateSleepTimeViewState {
       sleepTimer.enable(SleepTimerMode.EndOfChapter)
+      loadBook(bookId)?.let { session.setSleep(it, SleepChange.Set(SleepOption.EndOfChapter)) }
       null
     }
   }
@@ -551,6 +570,7 @@ class BookPlayViewModel(
       Logger.d("toggleSleepTimer while active=${sleepTimer.state.value}")
       if (sleepTimer.state.value.enabled) {
         sleepTimer.disable()
+        loadBook(bookId)?.let { session.setSleep(it, SleepChange.Off) }
         dialogState.value = null
       } else {
         dialogState.value = BookPlayDialogViewState.SleepTimer(

@@ -16,6 +16,9 @@ import voice.core.playback.LivePlaybackState
 import voice.core.playback.PlayerController
 import voice.core.playback.playstate.PlayStateManager
 import voice.core.playback.pim.ListeningState
+import voice.core.playback.pim.SleepChange
+import voice.core.playback.pim.SleepMode
+import voice.core.playback.pim.SleepOption
 import voice.core.playback.pim.verifyListeningPropositions
 import java.time.Instant
 import kotlin.test.AfterTest
@@ -222,6 +225,37 @@ class ListeningSessionTest {
 
     // 显式拖动才走 setPosition；快进快退必须保留播放器自己的步长与跨章逻辑。
     verify(exactly = 0) { player.setPosition(any(), any(), any()) }
+  }
+
+  @Test
+  fun sleepTimerElapsedStopsInS3WithTheRuleCleared() = runTest {
+    val pageBook = sessionBook()
+    val session = sessionFor(pageBook)
+    session.alignToPlaying(pageBook)
+    session.setSleep(pageBook, SleepChange.Set(SleepOption.Minutes(15)))
+    assertEquals(SleepMode.MINUTES, session.state.value.sleepMode)
+
+    session.sleepTimerElapsed(pageBook)
+
+    val ctx = session.state.value
+    assertEquals(ListeningState.S3_SLEEP_STOPPED, ctx.state)
+    assertEquals(SleepMode.OFF, ctx.sleepMode)
+    assertEquals(0, ctx.sleepRemainingSec)
+    assertTrue(verifyListeningPropositions(ctx).isEmpty(), ctx.toString())
+    verify { player.pause() }
+  }
+
+  @Test
+  fun cancellingTheSleepRuleClearsTheCountdown() = runTest {
+    val pageBook = sessionBook()
+    val session = sessionFor(pageBook)
+    session.alignToPlaying(pageBook)
+    session.setSleep(pageBook, SleepChange.Set(SleepOption.Minutes(15)))
+
+    session.setSleep(pageBook, SleepChange.Off)
+
+    assertEquals(SleepMode.OFF, session.state.value.sleepMode)
+    assertEquals(0, session.state.value.sleepRemainingSec)
   }
 
   @Test

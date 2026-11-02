@@ -17,6 +17,8 @@ import voice.core.playback.pim.ListeningContext
 import voice.core.playback.pim.ListeningEvent
 import voice.core.playback.pim.ListeningState
 import voice.core.playback.pim.SKIP_SECONDS
+import voice.core.playback.pim.SleepChange
+import voice.core.playback.pim.SleepOption
 import voice.core.playback.pim.currentChapterDuration
 import voice.core.playback.pim.initialListeningContext
 import voice.core.playback.pim.step
@@ -115,6 +117,32 @@ class ListeningSession(
     if (next == previous) return
     _state.value = next
     platform()
+  }
+
+  /** 同步睡眠香规则；[SleepChange.Off] 表示取消。 */
+  suspend fun setSleep(book: Book, change: SleepChange) {
+    register(book)
+    dispatch(ListeningEvent.SetPref(sleepChange = change), book)
+  }
+
+  /**
+   * 平台的睡眠定时器到点：让网格自己走到止息。
+   *
+   * 做法是先把倒计时压到 0，再走一次 [ListeningEvent.SecondElapsed]——
+   * 归零即 S3，睡眠规则同时熄灭，满足公理 P6。
+   */
+  suspend fun sleepTimerElapsed(book: Book) {
+    register(book)
+    if (_state.value.state != ListeningState.S2_PLAYING) return
+    dispatch(ListeningEvent.SetPref(sleepChange = SleepChange.Set(SleepOption.Minutes(0))), book)
+    val duration = currentChapterDuration(_state.value)
+    dispatch(
+      ListeningEvent.SecondElapsed(
+        currentPositionSec = duration.takeIf { it > 0 } ?: _state.value.positionSec,
+        chapterDurationSec = duration.takeIf { it > 0 },
+      ),
+      book,
+    )
   }
 
   suspend fun setSpeed(book: Book, speed: Float) {
@@ -261,6 +289,14 @@ class ListeningSession(
         if (next.speed != previous.speed) player.setSpeed(next.speed)
 
       is ListeningEvent.SecondElapsed -> Unit
+    }
+
+    // 离开诵读态（睡眠止息、全书诵毕）就要真的停下：网格说了算。
+    if (previous.state == ListeningState.S2_PLAYING &&
+      next.state != ListeningState.S2_PLAYING &&
+      event !is ListeningEvent.TogglePlay
+    ) {
+      player.pause()
     }
   }
 
