@@ -346,6 +346,21 @@ a {
   min-width: 2.5em;
 }
 
+/* A chapter with no bytes on this device, shown while offline. */
+.chapter-item--offline {
+  opacity: 0.55;
+}
+
+.chapter-item__note {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.preview-hint {
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
 /* Bookmarks */
 
 .bookmark-group {

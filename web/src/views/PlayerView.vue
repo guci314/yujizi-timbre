@@ -41,6 +41,11 @@ const sleepLabel = computed(() => (player.sleepMode.value === 'end-of-chapter' ?
 const sleepRemaining = computed(() =>
   player.sleepMode.value === 'minutes' ? player.sleepRemaining.value : undefined,
 )
+/**
+ * The live duration when this book is playing; otherwise a generous window so a
+ * listener can pre-set a start position before the first tap.
+ */
+const sliderMax = computed(() => (duration.value > 0 ? duration.value : Math.max(3600, currentTime.value)))
 
 async function openFromRoute(): Promise<void> {
   const target = slug.value
@@ -103,13 +108,21 @@ function playChapter(index: number): void {
 }
 
 function seekTo(seconds: number): void {
-  if (!isPlayingBook.value) return
-  player.seek(seconds)
+  if (isPlayingBook.value) {
+    player.seek(seconds)
+    return
+  }
+  // Not this book's session: move the page's own start marker, so the next tap
+  // on play begins where the listener pointed instead of at the saved second.
+  savedTime.value = Math.max(0, seconds)
 }
 
 function skip(delta: number): void {
-  if (!isPlayingBook.value) return
-  player.skip(delta)
+  if (isPlayingBook.value) {
+    player.skip(delta)
+    return
+  }
+  savedTime.value = Math.max(0, savedTime.value + delta)
 }
 
 function onSeek(event: Event): void {
@@ -159,7 +172,7 @@ async function addCurrentBookmark(): Promise<void> {
         </p>
         <p class="now-playing__track">{{ track?.name ?? '未选择章节' }}</p>
 
-        <p v-if="player.error.value" class="error-banner">
+        <p v-if="isPlayingBook && player.error.value" class="error-banner">
           {{ player.error.value }}
           <button class="link-button" @click="player.toggle()">重试</button>
         </p>
@@ -169,18 +182,20 @@ async function addCurrentBookmark(): Promise<void> {
           <input
             type="range"
             min="0"
-            :max="duration || 0"
+            :max="sliderMax"
             step="1"
             :value="currentTime"
-            :disabled="!isPlayingBook"
             aria-label="播放进度"
             @input="onSeek"
           />
-          <span>{{ formatTime(duration) }}</span>
+          <span>{{ duration > 0 ? formatTime(duration) : '—' }}</span>
         </div>
+        <p v-if="!isPlayingBook" class="muted preview-hint">
+          这本书尚未开始播放。拖动进度或点 ±30 秒可先选好起点，点 ▶ 从该处开始。
+        </p>
 
         <div class="controls">
-          <button class="control-button" data-testid="skip-back" aria-label="后退 30 秒" :disabled="!isPlayingBook" @click="skip(-SKIP_SECONDS)">
+          <button class="control-button" data-testid="skip-back" aria-label="后退 30 秒" @click="skip(-SKIP_SECONDS)">
             ⟲
           </button>
           <button
@@ -194,7 +209,6 @@ async function addCurrentBookmark(): Promise<void> {
             class="control-button"
             data-testid="skip-forward"
             aria-label="前进 30 秒"
-            :disabled="!isPlayingBook"
             @click="skip(SKIP_SECONDS)"
           >
             ⟳
@@ -257,11 +271,13 @@ async function addCurrentBookmark(): Promise<void> {
           <li v-for="(item, index) in detail.tracks" :key="item.url" class="chapter-row">
             <button
               class="chapter-item"
+              :class="{ 'chapter-item--offline': offline && !downloads.isDownloaded(item.url) }"
               :aria-current="isPlayingBook && index === player.trackIndex.value"
               @click="playChapter(index)"
             >
               <span class="chapter-item__index">{{ index + 1 }}</span>
               <span>{{ item.name }}</span>
+              <span v-if="offline && !downloads.isDownloaded(item.url)" class="muted chapter-item__note">需联网</span>
             </button>
             <span class="chapter-row__actions">
               <span v-if="downloads.progressFor(item.url)" class="chapter-row__progress">

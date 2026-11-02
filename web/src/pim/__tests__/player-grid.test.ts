@@ -5,6 +5,7 @@ import { PLAYER_GRID, PLAYER_CELL_COUNT } from '../player-grid'
 import {
   initialPlayerContext,
   MAX_AUTO_RETRIES,
+  resumePosition,
   type PlayerContext,
   type PlayerEffect,
   type PlayerEvent,
@@ -102,6 +103,16 @@ const invariants: Array<Invariant<PlayerStateId, PlayerContext, PlayerEvent, Pla
       return after.book?.slug === before.book?.slug && after.state === before.state
         ? undefined
         : `在 ${before.state} 打开另一本书导致播放会话变更`
+    },
+  },
+  {
+    id: 'I4_待提交Seek不可被冲掉',
+    check: ({ before, after, event }) => {
+      if (!before.seekPending) return undefined
+      if (!['E_TIME_UPDATE', 'E_PLAY_STARTED', 'E_TICK_1S'].includes(event.type)) return undefined
+      return after.currentTime === before.currentTime && after.seekPending === true
+        ? undefined
+        : `${event.type} 把待提交的位置从 ${before.currentTime} 冲成 ${after.currentTime}（seekPending=${after.seekPending}）`
     },
   },
   {
@@ -205,7 +216,87 @@ describe('B2 viewing another book', () => {
     })
     expect(after.ctx.state).toBe('S1_LOADING_PAUSED')
     expect(after.ctx.book?.slug).toBe('zz')
-    expect(after.ctx.currentTime).toBe(7)
+    // Natural resume rewinds three seconds (7 -> 4).
+    expect(after.ctx.currentTime).toBe(4)
+  })
+})
+
+describe('I4 staged seek survives an early play event', () => {
+  it('does not let timeupdate(0) wipe a bookmark second', () => {
+    const hop = step(PLAYER_GRID, playing(), {
+      type: 'E_PLAY_AT',
+      book: zhuangzi,
+      trackIndex: 2,
+      startTime: 321,
+    })
+    // HTML5 fires `play` before `loadedmetadata`, so S4 is reachable while the
+    // seek is still staged.
+    const started = step(PLAYER_GRID, hop.ctx, { type: 'E_PLAY_STARTED' })
+    expect(started.ctx.state).toBe('S4_PLAYING')
+    expect(started.ctx.seekPending).toBe(true)
+
+    const early = step(PLAYER_GRID, started.ctx, { type: 'E_TIME_UPDATE', time: 0 })
+    expect(early.ctx.currentTime).toBe(321)
+    expect(early.ctx.seekPending).toBe(true)
+    expect(early.effects).toEqual([])
+
+    const committed = step(PLAYER_GRID, early.ctx, { type: 'E_META_LOADED', duration: 900 })
+    expect(committed.ctx.currentTime).toBe(321)
+    expect(committed.effects).toContainEqual({ type: 'AUDIO_SEEK', time: 321 })
+  })
+
+  it('keeps the staged second across repeated early updates and ticks', () => {
+    let ctx = step(PLAYER_GRID, playing(), {
+      type: 'E_PLAY_AT',
+      book: zhuangzi,
+      trackIndex: 2,
+      startTime: 321,
+    }).ctx
+    ctx = step(PLAYER_GRID, ctx, { type: 'E_PLAY_STARTED' }).ctx
+    ctx = step(PLAYER_GRID, ctx, { type: 'E_SET_SLEEP', option: { kind: 'minutes', minutes: 1, label: '1 分钟' } }).ctx
+    for (let i = 0; i < 5; i += 1) {
+      ctx = step(PLAYER_GRID, ctx, { type: 'E_TIME_UPDATE', time: 0 }).ctx
+      ctx = step(PLAYER_GRID, ctx, { type: 'E_TICK_1S' }).ctx
+    }
+    expect(ctx.currentTime).toBe(321)
+    expect(ctx.seekPending).toBe(true)
+  })
+})
+
+describe('resume position', () => {
+  it('rewinds three seconds', () => {
+    expect(resumePosition(321, 0)).toBe(318)
+  })
+
+  it('never rewinds below zero', () => {
+    expect(resumePosition(2, 0)).toBe(0)
+  })
+
+  it('treats an unknown or zero position as the start', () => {
+    expect(resumePosition(0, 0)).toBe(0)
+    expect(resumePosition(Number.NaN, 0)).toBe(0)
+  })
+
+  it('clamps to the last second when the duration is known', () => {
+    expect(resumePosition(200, 100)).toBe(99)
+  })
+
+  it('is applied by natural resume only, not by a bookmark hop', () => {
+    const resumed = step(PLAYER_GRID, initialPlayerContext(), {
+      type: 'E_PREPARE_BOOK',
+      book: daodejing,
+      trackIndex: 0,
+      savedTime: 42,
+    })
+    expect(resumed.ctx.currentTime).toBe(39)
+
+    const hop = step(PLAYER_GRID, playing(), {
+      type: 'E_PLAY_AT',
+      book: daodejing,
+      trackIndex: 1,
+      startTime: 42,
+    })
+    expect(hop.ctx.currentTime).toBe(42)
   })
 })
 

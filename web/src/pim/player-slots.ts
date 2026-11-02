@@ -11,6 +11,7 @@ import {
   clampTime,
   MAX_AUTO_RETRIES,
   PROGRESS_SAVE_STEP_SEC,
+  resumePosition,
   type PlayerContext,
   type PlayerEffect,
   type PlayerStateId,
@@ -86,7 +87,9 @@ export function actPrepareBook(
 ): Step {
   if (book.tracks.length === 0) return { ctx, effects: INERT }
   const index = clampIndex(book, requestedIndex)
-  const next = enterTrack(ctx, book, index, clampTime(savedTime, 0), 'S1_LOADING_PAUSED')
+  // Natural resume rewinds a few seconds; bookmark hops go through E_PLAY_AT.
+  const startAt = clampTime(resumePosition(savedTime, 0), 0)
+  const next = enterTrack(ctx, book, index, startAt, 'S1_LOADING_PAUSED')
   return { ctx: next, effects: [...persistOutgoing(ctx), ...loadEffects(book, index)] }
 }
 
@@ -164,8 +167,15 @@ export function actPlayStarted(ctx: PlayerContext): Step {
  * Only called from S4. Advances the playhead and writes progress at most once
  * per PROGRESS_SAVE_STEP_SEC, keyed by the time it last wrote — so switching
  * books cannot swallow the previous book's tail (B6).
+ *
+ * A `timeupdate` must never be taken while a seek is still staged: HTML5 fires
+ * `play` before `loadedmetadata`, so the element can report 0 seconds between
+ * entering S4 and committing a bookmark hop. Believing it would overwrite the
+ * requested second (and persist the overwrite) before the seek lands.
  */
 export function actTimeUpdate(ctx: PlayerContext, time: number): Step {
+  if (ctx.seekPending) return { ctx, effects: INERT }
+
   const currentTime = clampTime(time, ctx.duration)
   const shouldPersist =
     ctx.book !== null &&

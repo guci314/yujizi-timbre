@@ -165,6 +165,11 @@ export async function storeTrack(
     throw new Error(classifyDownloadFailure(cause))
   }
 
+  // Caching audio without caching the chapter list is the B3 bug: the book would
+  // be unopenable exactly when it is needed. Idempotent, so downloading a single
+  // track is enough to make the whole book readable offline.
+  await cacheBook(book).catch(() => undefined)
+
   return {
     url: track.url,
     bookSlug: book.slug,

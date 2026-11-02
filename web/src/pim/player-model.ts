@@ -178,3 +178,19 @@ export function formatTime(seconds: number): string {
   if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
   return `${minutes}:${String(secs).padStart(2, '0')}`
 }
+
+/** Seconds rewound when resuming, so the listener regains a little context. */
+export const RESUME_REWIND_SECONDS = 3
+
+/**
+ * Clamp a resume position into the track, rewinding slightly.
+ *
+ * Natural resume (opening a book, restoring progress) rewinds; a bookmark hop
+ * goes through `E_PLAY_AT` and must land on the exact second instead.
+ */
+export function resumePosition(savedSeconds: number, duration: number): number {
+  if (!Number.isFinite(savedSeconds) || savedSeconds <= 0) return 0
+  const rewound = Math.max(0, savedSeconds - RESUME_REWIND_SECONDS)
+  if (!Number.isFinite(duration) || duration <= 0) return rewound
+  return Math.min(rewound, Math.max(0, duration - 1))
+}

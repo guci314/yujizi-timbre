@@ -59,6 +59,10 @@ specific to this subtree.
   pausing must freeze it structurally, not by remembering to clear a timer.
 - Progress is written per book position (`lastPersistedTime`), and every track switch emits
   `PERSIST_PROGRESS` for the outgoing track before loading the new one.
+- `timeupdate` is ignored while `seekPending` is true. HTML5 fires `play` before `loadedmetadata`, so a
+  bookmark hop can be in S4 with the element reporting 0 seconds; taking that value would overwrite the
+  requested second before the seek lands. Natural resume rewinds three seconds (`resumePosition`);
+  `E_PLAY_AT` never does.
 
 ## Offline download rules
 
