@@ -95,6 +95,9 @@ class BookPlayViewModelTest {
     currentBookResolver = currentBookResolver,
     player = player.apply {
       every { pauseIfCurrentBookDifferentFrom(book.id) } just Runs
+      every { play() } just Runs
+      every { playPause() } just Runs
+      every { livePlaybackStateFlow(any()) } returns MutableStateFlow(null)
     },
     sleepTimer = sleepTimer,
     playStateManager = playStateManager,
@@ -138,6 +141,9 @@ class BookPlayViewModelTest {
     },
     player = mockk {
       every { pauseIfCurrentBookDifferentFrom(book.id) } just Runs
+      every { play() } just Runs
+      every { playPause() } just Runs
+      every { livePlaybackStateFlow(any()) } returns MutableStateFlow(null)
     },
     sleepTimer = sleepTimer,
     playStateManager = playStateManager,
@@ -167,9 +173,13 @@ class BookPlayViewModelTest {
     pageBook: Book,
     player: PlayerController,
     store: MemoryDataStore<BookId?> = currentBookStoreId,
-  ): BookPlayViewModel = BookPlayViewModel(
+    otherBooks: Map<BookId, Book> = emptyMap(),
+  ): BookPlayViewModel {
+    player.apply { every { livePlaybackStateFlow(any()) } returns MutableStateFlow(null) }
+    return BookPlayViewModel(
     bookRepository = mockk {
       coEvery { get(pageBook.id) } returns pageBook
+      otherBooks.forEach { (id, other) -> coEvery { get(id) } returns other }
       every { flow(pageBook.id) } returns MutableStateFlow(pageBook)
     },
     currentBookResolver = mockk {
@@ -196,7 +206,8 @@ class BookPlayViewModelTest {
     ),
     experimentalPlaybackPersistenceFeatureFlag = MemoryFeatureFlag(false),
     kioskModeFeatureFlag = MemoryFeatureFlag(false),
-  )
+    )
+  }
 
   @Test
   fun openingAnotherBookDoesNotPauseThePlayingBook() = scope.runTest {
@@ -206,7 +217,7 @@ class BookPlayViewModelTest {
     currentBookStoreId.updateData { playingBook.id }
     val player = mockk<PlayerController>(relaxed = true)
 
-    pageViewModel(pageBook, player)
+    pageViewModel(pageBook, player, otherBooks = mapOf(playingBook.id to playingBook))
     yield()
 
     verify(exactly = 0) { player.pauseIfCurrentBookDifferentFrom(any()) }
@@ -236,7 +247,7 @@ class BookPlayViewModelTest {
     playStateManager.playState = PlayStateManager.PlayState.Playing
     currentBookStoreId.updateData { playingBook.id }
     val player = mockk<PlayerController>(relaxed = true)
-    val viewModel = pageViewModel(pageBook, player)
+    val viewModel = pageViewModel(pageBook, player, otherBooks = mapOf(playingBook.id to playingBook))
     yield()
 
     viewModel.playPause()
@@ -255,7 +266,7 @@ class BookPlayViewModelTest {
     playStateManager.playState = PlayStateManager.PlayState.Playing
     currentBookStoreId.updateData { playingBook.id }
     val player = mockk<PlayerController>(relaxed = true)
-    val viewModel = pageViewModel(pageBook, player)
+    val viewModel = pageViewModel(pageBook, player, otherBooks = mapOf(playingBook.id to playingBook))
     yield()
 
     viewModel.onChapterClick(number = 1)
