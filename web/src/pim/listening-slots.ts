@@ -109,6 +109,11 @@ export function actSetPreference(
         ? { sleepMode: 'end-of-chapter', sleepRemainingSec: 0 }
         : { sleepMode: 'minutes', sleepRemainingSec: Math.max(0, Math.round(sleepOption.minutes * 60)) }
 
+  // 止息之后重新点香，说明听众醒了：回到静置待播，香已点好。
+  // 否则会留下「已止息却仍点着香」的矛盾快照（违反 P6）。
+  if (ctx.state === 'S3_SLEEP_STOPPED' && sleepOption !== null) {
+    return { ...ctx, speed: nextSpeed, ...sleep, state: 'S1_PAUSED' }
+  }
   return { ...ctx, speed: nextSpeed, ...sleep }
 }
 

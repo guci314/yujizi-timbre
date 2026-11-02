@@ -1390,7 +1390,7 @@
               }
             },
             "expect": {
-              "state": "S3_SLEEP_STOPPED",
+              "state": "S1_PAUSED",
               "bookId": "ddj",
               "chapterIndex": 2,
               "positionSec": 100,

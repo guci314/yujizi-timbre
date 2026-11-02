@@ -90,7 +90,7 @@ fun actSetPreference(
   val nextSpeed = if (speed != null && speed > 0f) speed else ctx.speed
   if (sleepChange == null) return ctx.copy(speed = nextSpeed)
 
-  return when (sleepChange) {
+  val updated = when (sleepChange) {
     is SleepChange.Off -> ctx.copy(
       speed = nextSpeed,
       sleepMode = SleepMode.OFF,
@@ -110,6 +110,14 @@ fun actSetPreference(
         sleepRemainingSec = maxOf(0, option.minutes * 60),
       )
     }
+  }
+
+  // 止息之后重新点香，说明听众醒了：回到静置待播，香已点好。
+  // 否则会留下「已止息却仍点着香」的矛盾快照（违反 P6）。
+  return if (ctx.state == ListeningState.S3_SLEEP_STOPPED && sleepChange is SleepChange.Set) {
+    updated.copy(state = ListeningState.S1_PAUSED)
+  } else {
+    updated
   }
 }
 

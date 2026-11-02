@@ -16,9 +16,12 @@ import voice.core.playback.LivePlaybackState
 import voice.core.playback.PlayerController
 import voice.core.playback.playstate.PlayStateManager
 import voice.core.playback.pim.ListeningState
+import voice.core.playback.pim.verifyListeningPropositions
 import java.time.Instant
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.uuid.Uuid
 
 class ListeningSessionTest {
@@ -27,8 +30,21 @@ class ListeningSessionTest {
   private val playStateManager = PlayStateManager()
   private val store = MemoryStore<BookId?>(null)
 
+  private var lastSession: ListeningSession? = null
+
   private fun sessionFor(book: Book): ListeningSession =
-    ListeningSession(book.id, player, playStateManager, store)
+    ListeningSession(book.id, player, playStateManager, store).also { lastSession = it }
+
+  /** 每一个用例做完之后，快照都必须仍然满足全部命题公理（P4/P5/P6）。 */
+  @AfterTest
+  fun snapshotStillSatisfiesThePropositions() {
+    lastSession?.let { session ->
+      assertTrue(
+        verifyListeningPropositions(session.state.value).isEmpty(),
+        "违例：${verifyListeningPropositions(session.state.value)} / ${session.state.value}",
+      )
+    }
+  }
 
   @Test
   fun openWhileAnotherBookPlaysLeavesEverythingAlone() = runTest {

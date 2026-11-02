@@ -170,12 +170,10 @@ class ListeningSession(
   ) {
     val ctx = _state.value
     if (ctx.book?.id == bookId.value && ctx.state == ListeningState.S2_PLAYING) return
-    val known = books[bookId.value]
-    val bookSpec = known?.let(::spec)
-      ?: BookSpec(id = bookId.value, title = "", chapters = emptyList())
     _state.value = ctx.copy(
       state = ListeningState.S2_PLAYING,
-      book = bookSpec,
+      // 占位规格也必须带够篇章：P5 不允许「已展卷但无篇 / 章号越界」。
+      book = specOrPlaceholder(bookId, chapterIndex),
       chapterIndex = chapterIndex,
       positionSec = positionSec,
     )
@@ -204,8 +202,18 @@ class ListeningSession(
     }
   }
 
-  private fun specOrPlaceholder(bookId: BookId): BookSpec =
-    books[bookId.value]?.let(::spec) ?: BookSpec(id = bookId.value, title = "", chapters = emptyList())
+  /**
+   * 拿不到整本书时，用占位规格顶上：篇章数必须覆盖 [chapterIndex]，
+   * 否则 S2 快照会当场违反 P5_展卷完整性公理（章号越界 / 无篇章）。
+   */
+  private fun specOrPlaceholder(bookId: BookId, chapterIndex: Int = 0): BookSpec =
+    books[bookId.value]?.let(::spec) ?: BookSpec(
+      id = bookId.value,
+      title = "",
+      chapters = (0..maxOf(0, chapterIndex)).map { index ->
+        ChapterSpec(index = index, title = "", durationSec = 0)
+      },
+    )
 
   private fun isPageBookPlaying(): Boolean = _state.value.book?.id == pageBookId.value
 

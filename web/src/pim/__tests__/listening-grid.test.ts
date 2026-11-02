@@ -300,6 +300,24 @@ describe('语速与睡眠香', () => {
     expect(after.sleepRemainingSec).toBe(0)
   })
 
+  it('止息后重新点香会回到静置待播', () => {
+    const before = ctxAt('S3_SLEEP_STOPPED', { sleepMode: 'off', sleepRemainingSec: 0 })
+    const after = step(LISTENING_GRID, before, {
+      type: 'E_SET_PREF',
+      sleepOption: { kind: 'minutes', minutes: 20 },
+    })
+    // 止息后还点着香是自相矛盾的快照；听众一动，就算醒了。
+    expect(after.state).toBe('S1_PAUSED')
+    expect(after.sleepMode).toBe('minutes')
+    expect(after.sleepRemainingSec).toBe(1200)
+  })
+
+  it('止息后取消睡眠香仍保持止息', () => {
+    const before = ctxAt('S3_SLEEP_STOPPED', { sleepMode: 'off', sleepRemainingSec: 0 })
+    const after = step(LISTENING_GRID, before, { type: 'E_SET_PREF', sleepOption: null })
+    expect(after.state).toBe('S3_SLEEP_STOPPED')
+  })
+
   it('取消睡眠香即归零', () => {
     const before = ctxAt('S2_PLAYING', { sleepMode: 'minutes', sleepRemainingSec: 42 })
     const after = step(LISTENING_GRID, before, { type: 'E_SET_PREF', sleepOption: null })
