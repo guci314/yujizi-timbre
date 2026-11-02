@@ -77,7 +77,8 @@ specific to this subtree.
 - A stored track carries the `sha256` that was verified at download time. Opening the offline page runs
   `auditStoredTracks`, which reconciles the two stores and then verifies only records whose stamp is
   missing or stale — **one at a time**, never concurrently, because ten 80 MB episodes hashed in parallel
-  would exhaust an iPad's memory. A failed check deletes both the bytes and the record.
+  would exhaust an iPad's memory. A failed check deletes both the bytes and the record. Each visit hashes
+  at most `AUDIT_BATCH_SIZE` (15) tracks, smallest first; the rest continue on the next visit.
 - The bytes live in Cache Storage under `AUDIO_CACHE`; `downloads` in IndexedDB is the index over them.
   Keep the two in step: a record without bytes, or bytes without a record, is a bug. `removeTrack`,
   `removeBookDownloads` and `removeAllDownloads` are the only paths that should drop either.

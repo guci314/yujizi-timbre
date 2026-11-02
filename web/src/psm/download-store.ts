@@ -209,12 +209,25 @@ export function useDownloads() {
    * without touching their bytes, so only old downloads pay the hashing cost,
    * and only once.
    */
-  async function audit(): Promise<StoredAuditResult> {
+  async function audit(): Promise<StoredAuditResult | undefined> {
+    // A download in flight has bytes but no record yet, which looks exactly like
+    // drift. Wait for it rather than delete a track that is about to succeed.
+    if (busy.value) {
+      auditNote.value = '有音频正在下载，完成后再校验本机文件'
+      return undefined
+    }
+
     auditRun ??= (async () => {
       auditing.value = true
       auditNote.value = '正在核对本机音频…'
       try {
+        const inFlight = new Set(
+          [...stages.value.values()]
+            .filter((stage) => stage.state === 'D1_DOWNLOADING')
+            .map((stage) => stage.url),
+        )
         const result = await auditStoredTracks({
+          skipUrls: inFlight,
           onProgress: (done, total) => {
             if (done < total) auditNote.value = `正在校验第 ${done + 1}/${total} 首旧音频…`
           },
@@ -264,6 +277,13 @@ function describeAudit(result: StoredAuditResult): string {
   // Dangling records and orphan bytes are removed by the reconciliation step;
   // they are just as much "a broken leftover" to the listener.
   const removed = result.cleaned + result.danglingRecords + result.orphanBytes
+
+  if (result.remaining > 0) {
+    const parts = [`本次检查 ${result.checked} 首旧音频`]
+    if (removed > 0) parts.push(`清理 ${removed} 个损坏文件`)
+    parts.push(`还剩 ${result.remaining} 首，下次进入或点「核对账实」继续`)
+    return parts.join('，')
+  }
   if (removed > 0) {
     return `已自动清理 ${removed} 个损坏或未下完的旧音频，请重新下载`
   }

@@ -87,12 +87,9 @@ export async function auditDownloads(): Promise<ReconcilePlan> {
   return reconcile(records, bytes)
 }
 
-/** Drop drifted entries. Safe to run on every visit to the offline page. */
-export async function repairDownloadDrift(): Promise<ReconcilePlan> {
-  const [records, bytes] = await Promise.all([listDownloadRecordKeys(), listAudioCacheKeys()])
-  const plan = reconcile(records, bytes)
-  if (isConsistent(plan)) return plan
-  const port: DownloadPort = {
+/** The two deletions a repair may need; nothing else is ever written. */
+function createRepairPort(): DownloadPort {
+  return {
     putBytes: async () => undefined,
     deleteBytes: async (url) => {
       const cache = await caches.open(AUDIO_CACHE)
@@ -101,7 +98,14 @@ export async function repairDownloadDrift(): Promise<ReconcilePlan> {
     putRecord: async () => undefined,
     deleteRecord: deleteDownloadRecord,
   }
-  await repairDownloads(port, plan)
+}
+
+/** Drop drifted entries. Safe to run on every visit to the offline page. */
+export async function repairDownloadDrift(): Promise<ReconcilePlan> {
+  const [records, bytes] = await Promise.all([listDownloadRecordKeys(), listAudioCacheKeys()])
+  const plan = reconcile(records, bytes)
+  if (isConsistent(plan)) return plan
+  await repairDownloads(createRepairPort(), plan)
   return plan
 }
 
@@ -206,6 +210,15 @@ async function deleteAudioBytes(url: string): Promise<void> {
 
 /* Re-exported so callers do not have to know which module owns the model. */
 
+/**
+ * How many legacy tracks one visit may hash.
+ *
+ * A listener upgrading with 100+ episodes should not watch the offline page
+ * hashing 4 GB on first open. The batch continues on the next visit (or on a
+ * manual tap), and every verified track is stamped so the work never repeats.
+ */
+export const AUDIT_BATCH_SIZE = 15
+
 export interface StoredAuditResult {
   /** Records with no bytes behind them, before repair. */
   readonly danglingRecords: number
@@ -217,13 +230,25 @@ export interface StoredAuditResult {
   readonly checked: number
   /** Records deleted because their bytes were missing, truncated or tampered. */
   readonly cleaned: number
+  /** Legacy records left for the next visit because this batch hit its cap. */
+  readonly remaining: number
 }
 
 export interface StoredAuditOptions {
   /** Injectable for tests; production uses the shipped manifest. */
   resolveExpected?: (url: string) => Promise<AudioIntegrity | undefined>
-  /** Fires before each legacy track so the page can show "3/12". */
+  /** Fires before each track in this batch so the page can show "3/15". */
   onProgress?: (done: number, total: number) => void
+  /** Cap for this call; defaults to {@link AUDIT_BATCH_SIZE}. */
+  maxChecks?: number
+  /**
+   * Urls with a download in flight.
+   *
+   * `storeTrack` writes the bytes before the record, so a download caught
+   * mid-flight looks exactly like drift from the outside. Deleting it would
+   * break a track that was about to succeed, so these are left alone.
+   */
+  skipUrls?: Iterable<string>
 }
 
 /**
@@ -238,15 +263,16 @@ export interface StoredAuditOptions {
 export async function auditStoredTracks(options: StoredAuditOptions = {}): Promise<StoredAuditResult> {
   const resolveExpected = options.resolveExpected ?? ((url: string) => expectedIntegrityFor(url))
 
-  let records = await loadDownloads()
-  const cacheKeys = await listAudioCacheKeys()
+  const skip = new Set(options.skipUrls ?? [])
+  let records = (await loadDownloads()).filter((record) => !skip.has(record.url))
+  const cacheKeys = (await listAudioCacheKeys()).filter((key) => !skip.has(key))
   const plan = reconcile(
     records.map((record) => record.url),
     cacheKeys,
   )
   if (!isConsistent(plan)) {
-    await repairDownloadDrift()
-    records = await loadDownloads()
+    await repairDownloads(createRepairPort(), plan)
+    records = (await loadDownloads()).filter((record) => !skip.has(record.url))
   }
 
   const targets: Array<{ record: DownloadedTrack; expected: AudioIntegrity | undefined }> = []
@@ -262,6 +288,13 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
     targets.push({ record, expected })
   }
 
+  // Smallest first: a batch of 15 short tracks finishes fast, instead of
+  // starting with a single 88 MB episode and leaving everything else pending.
+  targets.sort((left, right) => left.record.sizeBytes - right.record.sizeBytes)
+
+  const limit = Math.max(0, options.maxChecks ?? AUDIT_BATCH_SIZE)
+  const batch = targets.slice(0, limit)
+
   let checked = 0
   let cleaned = 0
   const cache = await caches.open(AUDIO_CACHE)
@@ -271,9 +304,9 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
     await deleteDownloadRecord(url).catch(() => undefined)
   }
 
-  for (let index = 0; index < targets.length; index += 1) {
-    options.onProgress?.(index, targets.length)
-    const { record, expected } = targets[index]
+  for (let index = 0; index < batch.length; index += 1) {
+    options.onProgress?.(index, batch.length)
+    const { record, expected } = batch[index]
     checked += 1
 
     // Fast screen: the recorded size already contradicts the manifest, so the
@@ -319,7 +352,7 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
     }).catch(() => undefined)
   }
 
-  options.onProgress?.(targets.length, targets.length)
+  options.onProgress?.(batch.length, batch.length)
 
   return {
     danglingRecords: plan.danglingRecords.length,
@@ -327,5 +360,6 @@ export async function auditStoredTracks(options: StoredAuditOptions = {}): Promi
     alreadyVerified,
     checked,
     cleaned,
+    remaining: targets.length - batch.length,
   }
 }

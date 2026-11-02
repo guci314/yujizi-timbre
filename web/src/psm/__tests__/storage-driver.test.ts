@@ -210,3 +210,61 @@ describe('auditStoredTracks', () => {
     expect(result.alreadyVerified).toBe(1)
   })
 })
+
+describe('audit batching', () => {
+  it('hashes at most one batch per visit, then continues where it stopped', async () => {
+    const cache = installFakes()
+    const payloadBytes = new TextEncoder().encode('abcd')
+    const expected = { size: payloadBytes.length, sha256: await sha256Hex(payloadBytes) }
+    const urls = ['a', 'b', 'c'].map((name) => `https://example.test/legacy/${name}.m4a`)
+
+    for (const url of urls) {
+      await cache.put(url, new Response('abcd'))
+      await saveDownload({
+        url,
+        bookSlug: 'ddj',
+        bookTitle: '道德经',
+        trackIndex: 0,
+        trackName: '第一章',
+        sizeBytes: 4,
+        downloadedAt: 1,
+      })
+    }
+
+    const first = await auditStoredTracks({ resolveExpected: async () => expected, maxChecks: 2 })
+    expect(first.checked).toBe(2)
+    expect(first.remaining).toBe(1)
+    expect(cache.matchCalls).toBe(2)
+    expect((await loadDownloads()).filter((record) => record.sha256 !== undefined)).toHaveLength(2)
+
+    const second = await auditStoredTracks({ resolveExpected: async () => expected, maxChecks: 2 })
+    expect(second.checked).toBe(1)
+    expect(second.remaining).toBe(0)
+    expect(second.alreadyVerified).toBe(2)
+    expect((await loadDownloads()).every((record) => record.sha256 === expected.sha256)).toBe(true)
+  })
+})
+
+describe('audit vs in-flight downloads', () => {
+  const legacyUrl = 'https://example.test/legacy/inflight.m4a'
+
+  it('never deletes bytes that a download is still writing', async () => {
+    const cache = installFakes()
+    // Bytes are written before the record, so a mid-flight download looks like
+    // an orphan; deleting it would break a track that is about to succeed.
+    await cache.put(legacyUrl, new Response('abcd'))
+
+    const result = await auditStoredTracks({ skipUrls: [legacyUrl] })
+    expect(result.orphanBytes).toBe(0)
+    expect(cache.entries.has(legacyUrl)).toBe(true)
+  })
+
+  it('does clean the same orphan once no download owns it', async () => {
+    const cache = installFakes()
+    await cache.put(legacyUrl, new Response('abcd'))
+
+    const result = await auditStoredTracks({})
+    expect(result.orphanBytes).toBe(1)
+    expect(cache.entries.size).toBe(0)
+  })
+})
