@@ -251,3 +251,42 @@ describe('download state machine', () => {
     expect(run(failed, [{ type: 'E_START_DL' }]).state).toBe('D1_DOWNLOADING')
   })
 })
+
+describe('integrity failure', () => {
+  const reason = '音频校验失败（文件不完整或损坏），请重试'
+
+  const progressed = (): DownloadContext =>
+    step(
+      DOWNLOAD_GRID,
+      step(DOWNLOAD_GRID, initialDownloadContext(URL_A), { type: 'E_START_DL' }).ctx,
+      { type: 'E_DL_PROGRESS', received: 40, total: 100 },
+    ).ctx
+
+  it('parked in D3 with a readable reason, asking only for cleanup', () => {
+    const failed = step(DOWNLOAD_GRID, progressed(), { type: 'E_DL_FAIL', reason })
+    expect(failed.ctx.state).toBe('D3_FAILED')
+    expect(failed.ctx.reason).toBe(reason)
+    // No STORE_BYTES / INDEX_RECORD: a failed verification must never be persisted.
+    expect(failed.effects).toEqual([{ type: 'DROP_PARTIAL' }])
+  })
+
+  it('deletes whatever half-arrived bytes the attempt left behind', async () => {
+    const port = new MemoryPort()
+    await port.putBytes(URL_A) // a partial write from the interrupted attempt
+
+    const failed = step(DOWNLOAD_GRID, progressed(), { type: 'E_DL_FAIL', reason })
+    await runDownloadEffects(port, failed.ctx, failed.effects)
+
+    expect(port.bytes.size).toBe(0)
+    expect(port.records.size).toBe(0)
+    expect(port.consistent).toBe(true)
+  })
+
+  it('can be retried cleanly after a verification failure', () => {
+    const failed = step(DOWNLOAD_GRID, progressed(), { type: 'E_DL_FAIL', reason })
+    const retried = step(DOWNLOAD_GRID, failed.ctx, { type: 'E_START_DL' })
+    expect(retried.ctx.state).toBe('D1_DOWNLOADING')
+    expect(retried.ctx.reason).toBeNull()
+    expect(retried.ctx.received).toBe(0)
+  })
+})

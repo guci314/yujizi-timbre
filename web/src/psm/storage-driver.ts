@@ -140,45 +140,61 @@ export async function storeTrack(
   trackIndex: number,
   onProgress?: (received: number, total: number) => void,
 ): Promise<DownloadedTrack> {
-  const started = step(DOWNLOAD_GRID, initialDownloadContext(track.url), { type: 'E_START_DL' }).ctx
-  const { body, sizeBytes, headers } = await fetchTrackBytes(track, {
-    onProgress: (progress) => onProgress?.(progress.received, progress.total),
-  })
+  const started = step(DOWNLOAD_GRID, initialDownloadContext(track.url), { type: 'E_START_DL' })
 
-  const succeeded = step(DOWNLOAD_GRID, started, { type: 'E_DL_SUCCESS', sizeBytes })
-  const port = createDownloadPort(
-    {
+  try {
+    // `fetchTrackBytes` verifies length and SHA-256 before returning, so nothing
+    // below this line can ever see a truncated or tampered body.
+    const { body, sizeBytes, headers } = await fetchTrackBytes(track, {
+      onProgress: (progress) => onProgress?.(progress.received, progress.total),
+    })
+
+    const succeeded = step(DOWNLOAD_GRID, started.ctx, { type: 'E_DL_SUCCESS', sizeBytes })
+    const port = createDownloadPort(
+      {
+        bookSlug: book.slug,
+        bookTitle: book.title,
+        trackIndex,
+        trackName: track.name,
+        downloadedAt: Date.now(),
+      },
+      body,
+      headers,
+    )
+
+    await runDownloadEffects(port, succeeded.ctx, succeeded.effects)
+
+    // Caching audio without caching the chapter list is the B3 bug: the book would
+    // be unopenable exactly when it is needed. Idempotent, so downloading a single
+    // track is enough to make the whole book readable offline.
+    await cacheBook(book).catch(() => undefined)
+
+    return {
+      url: track.url,
       bookSlug: book.slug,
       bookTitle: book.title,
       trackIndex,
       trackName: track.name,
+      sizeBytes,
       downloadedAt: Date.now(),
-    },
-    body,
-    headers,
-  )
-
-  try {
-    await runDownloadEffects(port, succeeded.ctx, succeeded.effects)
+    }
   } catch (cause) {
-    // The grid already compensated the bytes; hand the listener a sentence.
-    throw new Error(classifyDownloadFailure(cause))
+    const reason = classifyDownloadFailure(cause)
+    // The grid's failure cell asks for a partial cleanup; a verification failure
+    // happens before the write, but a stale byte entry from an older attempt must
+    // not survive a failed one.
+    const failed = step(DOWNLOAD_GRID, started.ctx, { type: 'E_DL_FAIL', reason })
+    if (failed.effects.some((effect) => effect.type === 'DROP_PARTIAL')) {
+      await deleteAudioBytes(track.url).catch(() => undefined)
+    }
+    throw new Error(reason)
   }
+}
 
-  // Caching audio without caching the chapter list is the B3 bug: the book would
-  // be unopenable exactly when it is needed. Idempotent, so downloading a single
-  // track is enough to make the whole book readable offline.
-  await cacheBook(book).catch(() => undefined)
-
-  return {
-    url: track.url,
-    bookSlug: book.slug,
-    bookTitle: book.title,
-    trackIndex,
-    trackName: track.name,
-    sizeBytes,
-    downloadedAt: Date.now(),
-  }
+async function deleteAudioBytes(url: string): Promise<void> {
+  if (typeof caches === 'undefined') return
+  const cache = await caches.open(AUDIO_CACHE)
+  await cache.delete(url)
 }
 
 /* Re-exported so callers do not have to know which module owns the model. */

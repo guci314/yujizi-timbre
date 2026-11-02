@@ -90,4 +90,18 @@ describe('storeTrack', () => {
     expect(await loadCatalogEntry(book.slug)).toBeUndefined()
     expect(await loadDownloads()).toEqual([])
   })
+
+  it('never stores a truncated body', async () => {
+    const cache = installFakes()
+    // The server promised 100 bytes and delivered 3: a classic dropped stream.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('abc', { status: 200, headers: { 'content-length': '100' } })),
+    )
+
+    await expect(storeTrack(book, track, 0)).rejects.toThrow('音频校验失败（文件不完整或损坏），请重试')
+    expect(cache.entries.size).toBe(0)
+    expect(await loadDownloads()).toEqual([])
+    expect(await loadCatalogEntry(book.slug)).toBeUndefined()
+  })
 })

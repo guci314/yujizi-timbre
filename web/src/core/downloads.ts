@@ -1,6 +1,7 @@
 import type { BookDetail, DownloadedTrack, Track } from './domain'
 import { StorageFullError } from './domain'
 import { AUDIO_CACHE } from './audio-cache'
+import { assertPayloadIntact } from './integrity'
 import {
   deleteAllDownloadRecords,
   deleteDownloadRecord,
@@ -44,7 +45,7 @@ async function collectBody(
   response: Response,
   onProgress?: (progress: DownloadProgress) => void,
   url = '',
-): Promise<{ chunks: Uint8Array[]; received: number }> {
+): Promise<{ chunks: Uint8Array[]; received: number; declaredLength: number }> {
   const declaredLength = Number(response.headers.get('content-length') ?? 0)
   const chunks: Uint8Array[] = []
   let received = 0
@@ -64,7 +65,20 @@ async function collectBody(
     received = buffer.length
     onProgress?.({ url, received, total: declaredLength })
   }
-  return { chunks, received }
+  return { chunks, received, declaredLength: Number.isFinite(declaredLength) ? declaredLength : 0 }
+}
+
+/** One contiguous buffer for hashing; avoids a copy when the body arrived in one piece. */
+function concatChunks(chunks: Uint8Array[]): Uint8Array {
+  if (chunks.length === 1) return chunks[0]
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const merged = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  return merged
 }
 
 /**
@@ -83,8 +97,12 @@ export async function fetchTrackBytes(
   if (!response.ok) {
     throw new Error(`下载失败（${response.status}）：${track.name}`)
   }
-  const { chunks, received } = await collectBody(response, options.onProgress, track.url)
-  return { body: new Blob(chunks), sizeBytes: received, headers: response.headers }
+  const { chunks, received, declaredLength } = await collectBody(response, options.onProgress, track.url)
+  // Verify before anything reaches Cache Storage: a truncated episode must never
+  // be stored, or it will look downloaded and fail to play months later.
+  const bytes = concatChunks(chunks)
+  await assertPayloadIntact(track.url, bytes, declaredLength)
+  return { body: new Blob([bytes]), sizeBytes: received, headers: response.headers }
 }
 
 /**
@@ -104,7 +122,9 @@ export async function downloadTrack(
   if (!response.ok) {
     throw new Error(`下载失败（${response.status}）：${track.name}`)
   }
-  const { chunks, received } = await collectBody(response, options.onProgress, track.url)
+  const { chunks, received, declaredLength } = await collectBody(response, options.onProgress, track.url)
+  const bytes = concatChunks(chunks)
+  await assertPayloadIntact(track.url, bytes, declaredLength)
 
   const record: DownloadedTrack = {
     url: track.url,
@@ -120,7 +140,7 @@ export async function downloadTrack(
   try {
     cache = await openCache()
     // A fresh Response is built rather than reusing the consumed one.
-    await cache.put(track.url, new Response(new Blob(chunks), { headers: response.headers }))
+    await cache.put(track.url, new Response(new Blob([bytes]), { headers: response.headers }))
   } catch (cause) {
     if (isQuotaError(cause)) {
       throw new StorageFullError('设备存储空间不足，无法保存这一集。请先清理已下载的内容。')

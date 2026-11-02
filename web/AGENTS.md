@@ -69,6 +69,11 @@ specific to this subtree.
 - Downloads are explicit. Playback only ever asks for byte ranges, so a streaming response is a 206 and
   nothing lands in the cache; only `downloadTrack`'s full fetch is stored. Never describe caching as
   automatic, and never add a runtime route that tries to cache partial media.
+- Every full body is verified before it reaches Cache Storage: non-empty, `Content-Length` match when
+  declared, and size + SHA-256 against `src/core/track-integrity.json` when the track is in it. A failed
+  check throws `AudioIntegrityError`, the offline grid lands in `D3_FAILED`, and nothing is stored.
+  Regenerate the manifest with `python3 scripts/make_track_integrity.py` when the site's files change;
+  the numbers come from the site's own files, not from whatever a reload happened to return.
 - The bytes live in Cache Storage under `AUDIO_CACHE`; `downloads` in IndexedDB is the index over them.
   Keep the two in step: a record without bytes, or bytes without a record, is a bug. `removeTrack`,
   `removeBookDownloads` and `removeAllDownloads` are the only paths that should drop either.

@@ -16,6 +16,7 @@ import {
   totalDownloadBytes,
 } from './downloads'
 import { deleteDatabase } from './storage/db'
+import { INTEGRITY_FAILURE_MESSAGE } from './integrity'
 
 /** Minimal in-memory stand-in for the Cache API. */
 class FakeCache {
@@ -63,6 +64,30 @@ function serveBytes(bytes: number): void {
     }),
   )
 }
+
+/** Reply with a body of `bodyBytes` while claiming `declaredBytes`. */
+function serveTruncated(bodyBytes: number, declaredBytes: number): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => {
+      return new Response(new Uint8Array(bodyBytes), {
+        status: 200,
+        headers: { 'content-length': String(declaredBytes) },
+      })
+    }),
+  )
+}
+
+/**
+ * A real manifest entry: 355 KB of zeros has the right size but not the right
+ * fingerprint, which is exactly the "one byte flipped" case.
+ */
+const mappedTrack: Track = {
+  name: '第七章·回光活法',
+  url:
+    'https://www.yujizi.org/%E5%A4%AA%E4%B9%99%E9%87%91%E5%8D%8E%E5%AE%97%E6%97%A8%E6%9C%97%E8%AF%BB%E5%92%8C%E8%AF%91%E6%96%87/13-%E7%AC%AC%E4%B8%83%E7%AB%A0-%E5%9B%9E%E5%85%89%E6%B4%BB%E6%B3%95-%E5%8E%9F%E6%96%87.m4a',
+}
+const mappedSize = 355_239
 
 beforeEach(() => {
   cache = new FakeCache()
@@ -246,5 +271,42 @@ describe('cache bucket', () => {
     await downloadTrack(book, book.tracks[0], 0)
     expect(AUDIO_CACHE).toBe('timbre-audio')
     expect(cache.entries.has(book.tracks[0].url)).toBe(true)
+  })
+})
+
+describe('integrity gate', () => {
+  it('refuses a truncated body and leaves no trace (content-length mismatch)', async () => {
+    serveTruncated(100, 2048)
+
+    await expect(downloadTrack(book, book.tracks[0], 0)).rejects.toThrow(INTEGRITY_FAILURE_MESSAGE)
+    expect(cache.entries.size).toBe(0)
+    expect(await listDownloads()).toHaveLength(0)
+  })
+
+  it('refuses a body whose sha256 does not match the manifest', async () => {
+    // Correct size, wrong bytes: only the fingerprint can catch this.
+    serveTruncated(mappedSize, mappedSize)
+
+    await expect(downloadTrack(book, mappedTrack, 0)).rejects.toThrow(INTEGRITY_FAILURE_MESSAGE)
+    expect(cache.entries.size).toBe(0)
+    expect(await listDownloads()).toHaveLength(0)
+  })
+
+  it('refuses an empty body', async () => {
+    serveTruncated(0, 0)
+
+    await expect(downloadTrack(book, book.tracks[0], 0)).rejects.toThrow(INTEGRITY_FAILURE_MESSAGE)
+    expect(cache.entries.size).toBe(0)
+    expect(await listDownloads()).toHaveLength(0)
+  })
+
+  it('does not leave a record behind when a book download hits a bad track', async () => {
+    serveTruncated(mappedSize, mappedSize)
+    const result = await downloadBook({ ...book, tracks: [{ ...mappedTrack }] })
+    expect(result.failed).toBe(1)
+    expect(result.downloaded).toBe(0)
+    expect(result.error?.message).toBe(INTEGRITY_FAILURE_MESSAGE)
+    expect(await listDownloads()).toHaveLength(0)
+    expect(cache.entries.size).toBe(0)
   })
 })
