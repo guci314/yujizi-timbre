@@ -79,9 +79,7 @@ class BookPlayViewModelTest {
   }
 
   private val player = mockk<PlayerController>()
-  private val playStateManager = mockk<PlayStateManager> {
-    every { playStateFlow } returns MutableStateFlow(PlayStateManager.PlayState.Paused)
-  }
+  private val playStateManager = PlayStateManager()
   private val currentBookStoreId = MemoryDataStore<BookId?>(null)
   private val currentBookResolver = mockk<CurrentBookResolver> {
     coEvery { book(book.id) } returns book
@@ -159,6 +157,110 @@ class BookPlayViewModelTest {
     experimentalPlaybackPersistenceFeatureFlag = MemoryFeatureFlag(false),
     kioskModeFeatureFlag = MemoryFeatureFlag(false),
   )
+
+  /** 为「翻看另一本书」的场景造一个 ViewModel：播放器与当前书由调用方决定。 */
+  @IgnorableReturnValue
+  private fun pageViewModel(
+    pageBook: Book,
+    player: PlayerController,
+    store: MemoryDataStore<BookId?> = currentBookStoreId,
+  ): BookPlayViewModel = BookPlayViewModel(
+    bookRepository = mockk {
+      coEvery { get(pageBook.id) } returns pageBook
+      every { flow(pageBook.id) } returns MutableStateFlow(pageBook)
+    },
+    currentBookResolver = mockk {
+      coEvery { book(pageBook.id) } returns pageBook
+    },
+    player = player,
+    sleepTimer = sleepTimer,
+    playStateManager = playStateManager,
+    onlinePlaybackCatalog = mockk {
+      every { isOnlineBookId(any()) } returns false
+      every { playbackErrors } returns MutableSharedFlow()
+    },
+    currentBookStoreId = store,
+    navigator = mockk(),
+    bookmarkRepository = mockk(),
+    volumeGainFormatter = mockk(),
+    batteryOptimization = mockk(relaxed = true),
+    sleepTimerPreferenceStore = sleepTimerDataStore,
+    bookId = pageBook.id,
+    dispatcherProvider = DispatcherProvider(
+      viewModelScope.coroutineContext,
+      viewModelScope.coroutineContext,
+      viewModelScope.coroutineContext,
+    ),
+    experimentalPlaybackPersistenceFeatureFlag = MemoryFeatureFlag(false),
+    kioskModeFeatureFlag = MemoryFeatureFlag(false),
+  )
+
+  @Test
+  fun openingAnotherBookDoesNotPauseThePlayingBook() = scope.runTest {
+    val playingBook = book(name = "Playing")
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Playing
+    currentBookStoreId.updateData { playingBook.id }
+    val player = mockk<PlayerController>(relaxed = true)
+
+    pageViewModel(pageBook, player)
+    yield()
+
+    verify(exactly = 0) { player.pauseIfCurrentBookDifferentFrom(any()) }
+    verify(exactly = 0) { player.playPause() }
+    assertEquals(expected = playingBook.id, actual = currentBookStoreId.data.first())
+  }
+
+  @Test
+  fun openingAnotherBookWhilePausedStillClaimsTheBook() = scope.runTest {
+    val pausedBook = book(name = "Paused")
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Paused
+    currentBookStoreId.updateData { pausedBook.id }
+    val player = mockk<PlayerController>(relaxed = true)
+
+    pageViewModel(pageBook, player)
+    yield()
+
+    verify(exactly = 1) { player.pauseIfCurrentBookDifferentFrom(pageBook.id) }
+    assertEquals(expected = pageBook.id, actual = currentBookStoreId.data.first())
+  }
+
+  @Test
+  fun playPauseClaimsTheBookBeforeStarting() = scope.runTest {
+    val playingBook = book(name = "Playing")
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Playing
+    currentBookStoreId.updateData { playingBook.id }
+    val player = mockk<PlayerController>(relaxed = true)
+    val viewModel = pageViewModel(pageBook, player)
+    yield()
+
+    viewModel.playPause()
+    yield()
+
+    // 只有主动点播放才切书：播放器被要求开讲，当前书换成这一本。
+    verify(exactly = 1) { player.playPause() }
+    assertEquals(expected = pageBook.id, actual = currentBookStoreId.data.first())
+  }
+
+  @Test
+  fun selectingChapterClaimsTheBookAndStartsPlayback() = scope.runTest {
+    val playingBook = book(name = "Playing")
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Playing
+    currentBookStoreId.updateData { playingBook.id }
+    val player = mockk<PlayerController>(relaxed = true)
+    val viewModel = pageViewModel(pageBook, player)
+    yield()
+
+    viewModel.onChapterClick(number = 1)
+    yield()
+
+    verify(exactly = 1) { player.playPause() }
+    verify(exactly = 1) { player.setPosition(any(), any(), any()) }
+    assertEquals(expected = pageBook.id, actual = currentBookStoreId.data.first())
+  }
 
   @Test
   fun sleepTimerValueChanging() = scope.runTest {

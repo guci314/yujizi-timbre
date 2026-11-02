@@ -90,8 +90,11 @@ class BookPlayViewModel(
 
   init {
     scope.launch {
-      player.pauseIfCurrentBookDifferentFrom(bookId)
-      currentBookStoreId.updateData { bookId }
+      // 翻看另一本书的目录，不得打断正在诵读的那一本（PIM：S2 下 E_OPEN_BOOK 被忽略）。
+      if (!anotherBookIsPlaying()) {
+        player.pauseIfCurrentBookDifferentFrom(bookId)
+        currentBookStoreId.updateData { bookId }
+      }
     }
     scope.launch {
       onlinePlaybackCatalog.playbackErrors.collect { error ->
@@ -357,31 +360,45 @@ class BookPlayViewModel(
   }
 
   fun next() {
-    player.next()
+    scope.launch {
+      if (anotherBookIsPlaying()) return@launch
+      player.next()
+    }
   }
 
   fun previous() {
-    player.previous()
+    scope.launch {
+      if (anotherBookIsPlaying()) return@launch
+      player.previous()
+    }
   }
 
   fun playPause() {
-    if (playStateManager.playState != PlayStateManager.PlayState.Playing) {
-      scope.launch {
+    scope.launch {
+      // 主动点播放才把「当前书」切到本页；只是翻看不算。
+      claimPlaybackForThisBook()
+      if (playStateManager.playState != PlayStateManager.PlayState.Playing) {
         if (batteryOptimization.shouldRequest()) {
           viewEffects.tryEmit(BookPlayViewEffect.RequestIgnoreBatteryOptimization)
           batteryOptimization.onBatteryOptimizationsRequested()
         }
       }
+      player.playPause()
     }
-    player.playPause()
   }
 
   fun rewind() {
-    player.rewind()
+    scope.launch {
+      if (anotherBookIsPlaying()) return@launch
+      player.rewind()
+    }
   }
 
   fun fastForward() {
-    player.fastForward()
+    scope.launch {
+      if (anotherBookIsPlaying()) return@launch
+      player.fastForward()
+    }
   }
 
   fun onCloseClick() {
@@ -422,11 +439,15 @@ class BookPlayViewModel(
   fun onChapterClick(number: Int) {
     scope.launch {
       val book = currentBook() ?: return@launch
+      // 选章是一次主动点播：此时才允许把当前书切过来，并接着开讲。
+      val switchingBooks = anotherBookIsPlaying()
+      claimPlaybackForThisBook()
       var currentIndex = -1
       book.chapters.forEach { chapter ->
         chapter.chapterMarks.forEach { mark ->
           currentIndex++
           if (currentIndex == number - 1) {
+            if (switchingBooks) player.playPause()
             player.setPosition(
               book = book,
               chapterId = chapter.id,
@@ -480,6 +501,7 @@ class BookPlayViewModel(
 
   fun seekTo(position: Duration) {
     scope.launch {
+      if (anotherBookIsPlaying()) return@launch
       val book = currentBook() ?: return@launch
       val currentChapter = book.currentChapter
       val currentMark = currentChapter.markForPosition(book.content.positionInChapter)
@@ -520,6 +542,20 @@ class BookPlayViewModel(
 
   private suspend fun currentBook(): Book? {
     return currentBookResolver.book(bookId)
+  }
+
+  /** 另一本书正在诵读、而本页只是被翻看。 */
+  private suspend fun anotherBookIsPlaying(): Boolean {
+    if (playStateManager.playState != PlayStateManager.PlayState.Playing) return false
+    val current = currentBookStoreId.data.first() ?: return false
+    return current != bookId
+  }
+
+  /** 用户主动点播时才把「当前书」切到本页；翻看不算。 */
+  private suspend fun claimPlaybackForThisBook() {
+    val current = currentBookStoreId.data.first()
+    if (current == bookId) return
+    currentBookStoreId.updateData { bookId }
   }
 
   @AssistedFactory
