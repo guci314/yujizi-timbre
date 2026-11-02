@@ -15,6 +15,7 @@ import dev.zacsweers.metro.AssistedInject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -107,6 +108,13 @@ class BookPlayViewModel(
       }
     }
     scope.launch {
+      // 播放状态的权威来源：睡眠香到点、耳机、系统焦点只改 playStateFlow。
+      combine(currentBookStoreId.data, playStateManager.playStateFlow) { id, playState -> id to playState }
+        .collect { (id, playState) ->
+          session.syncExternalPlayState(id, playState == PlayStateManager.PlayState.Playing)
+        }
+    }
+    scope.launch {
       onlinePlaybackCatalog.playbackErrors.collect { error ->
         if (error.bookUri == bookId.value) {
           viewEffects.tryEmit(BookPlayViewEffect.OnlineSourceError(error.kind))
@@ -121,11 +129,16 @@ class BookPlayViewModel(
    * 「翻看 A 书目录不掐断 B 书」在运行时的实现，ViewModel 里不再手写守卫。
    */
   private suspend fun alignThenOpen() {
+    val pageBook = loadBook(bookId)
+    if (pageBook != null) session.register(pageBook)
+
     val currentId = currentBookStoreId.data.first()
     if (playStateManager.playState == PlayStateManager.PlayState.Playing && currentId != null) {
-      loadBook(currentId)?.let(session::alignToPlaying)
+      // 即便加载不到那本书，也要先把网格置为它的 S2：否则本页展卷会抢走正在诵读的书。
+      session.alignToPlayingBookId(currentId)
     }
-    val pageBook = loadBook(bookId) ?: return
+
+    if (pageBook == null) return
     val chapterIndex = pageBook.chapters.indexOfFirst { it.id == pageBook.currentChapter }.coerceAtLeast(0)
     session.open(pageBook, chapterIndex, (pageBook.content.positionInChapter / 1_000).toInt())
   }
@@ -417,13 +430,13 @@ class BookPlayViewModel(
 
   fun rewind() {
     scope.launch {
-      loadBook(bookId)?.let { session.skip(it, -voice.core.playback.pim.SKIP_SECONDS) }
+      loadBook(bookId)?.let { session.rewind(it) }
     }
   }
 
   fun fastForward() {
     scope.launch {
-      loadBook(bookId)?.let { session.skip(it, voice.core.playback.pim.SKIP_SECONDS) }
+      loadBook(bookId)?.let { session.fastForward(it) }
     }
   }
 

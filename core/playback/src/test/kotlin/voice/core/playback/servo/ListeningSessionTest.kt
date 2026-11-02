@@ -159,6 +159,56 @@ class ListeningSessionTest {
   }
 
   @Test
+  fun unknownPlayingBookStillBlocksTheTakeover() = runTest {
+    val pageBook = sessionBook()
+    val playingBookId = BookId(Uuid.random().toString())
+    val session = sessionFor(pageBook)
+
+    // 只知道「那本书在播」，加载不到整本书。
+    session.alignToPlayingBookId(playingBookId)
+    session.open(pageBook, 0, 0)
+
+    assertEquals(ListeningState.S2_PLAYING, session.state.value.state)
+    assertEquals(playingBookId.value, session.state.value.book?.id)
+    verify(exactly = 0) { player.pauseIfCurrentBookDifferentFrom(any()) }
+    assertEquals(null, store.data.first())
+  }
+
+  @Test
+  fun externalPlayStateAlignsPauseAndResume() = runTest {
+    val pageBook = sessionBook()
+    val session = sessionFor(pageBook)
+    session.alignToPlaying(pageBook)
+
+    session.syncExternalPlayState(pageBook.id, isPlaying = false)
+    assertEquals(ListeningState.S1_PAUSED, session.state.value.state)
+
+    session.syncExternalPlayState(pageBook.id, isPlaying = true)
+    assertEquals(ListeningState.S2_PLAYING, session.state.value.state)
+
+    verify(exactly = 0) { player.playPause() }
+    verify(exactly = 0) { player.play() }
+  }
+
+  @Test
+  fun rewindAndFastForwardUseThePlayersOwnStep() = runTest {
+    val pageBook = sessionBook()
+    val session = sessionFor(pageBook)
+    session.alignToPlayingBookId(pageBook.id, chapterIndex = 0, positionSec = 100)
+
+    session.rewind(pageBook)
+    verify(exactly = 1) { player.rewind() }
+    assertEquals(70, session.state.value.positionSec)
+
+    session.fastForward(pageBook)
+    verify(exactly = 1) { player.fastForward() }
+    assertEquals(100, session.state.value.positionSec)
+
+    // 显式拖动才走 setPosition；快进快退必须保留播放器自己的步长与跨章逻辑。
+    verify(exactly = 0) { player.setPosition(any(), any(), any()) }
+  }
+
+  @Test
   fun releaseOfACrossBookEventDoesNothingWhenGridIgnoresIt() = runTest {
     val pageBook = sessionBook()
     val playingBook = sessionBook()

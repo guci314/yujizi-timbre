@@ -91,9 +91,30 @@ class ListeningSession(
     )
   }
 
-  suspend fun skip(book: Book, deltaSeconds: Int) {
-    val current = _state.value.positionSec
-    seekTo(book, current + deltaSeconds)
+  /** 快退：快照照业务步长回退，真正的平台动作交给播放器（自带用户设定的秒数与跨章）。 */
+  suspend fun rewind(book: Book) {
+    skipViaPlayer(book, -SKIP_SECONDS) { player.rewind() }
+  }
+
+  /** 快进：同上。 */
+  suspend fun fastForward(book: Book) {
+    skipViaPlayer(book, SKIP_SECONDS) { player.fastForward() }
+  }
+
+  private suspend fun skipViaPlayer(book: Book, deltaSeconds: Int, platform: suspend () -> Unit) {
+    if (!isPageBookPlaying()) return
+    register(book)
+    val previous = _state.value
+    val next = LISTENING_GRID.step(
+      previous,
+      ListeningEvent.Seek(
+        targetSec = previous.positionSec + deltaSeconds,
+        chapterDurationSec = currentChapterDuration(previous).takeIf { it > 0 },
+      ),
+    )
+    if (next == previous) return
+    _state.value = next
+    platform()
   }
 
   suspend fun setSpeed(book: Book, speed: Float) {
@@ -132,16 +153,59 @@ class ListeningSession(
   /** 粗对齐：只知道「另一本书正在诵读」时用，把网格置为那本书的诵读态。 */
   fun alignToPlaying(book: Book) {
     register(book)
-    val ctx = _state.value
-    if (ctx.book?.id == book.id.value && ctx.state == ListeningState.S2_PLAYING) return
     val index = book.chapters.indexOfFirst { it.id == book.currentChapter }.coerceAtLeast(0)
+    alignToPlayingBookId(book.id, index, (book.content.positionInChapter / 1_000).toInt())
+  }
+
+  /**
+   * 只知道「这本书正在诵读」、而无从加载整本书时的粗对齐。
+   *
+   * 关键：即便查不到那本书，也必须把网格置为它的 S2 —— 否则网格停在 S0，
+   * 紧接着本页的展卷会把正在诵读的书当成「空闲」而抢过去。
+   */
+  fun alignToPlayingBookId(
+    bookId: BookId,
+    chapterIndex: Int = 0,
+    positionSec: Int = 0,
+  ) {
+    val ctx = _state.value
+    if (ctx.book?.id == bookId.value && ctx.state == ListeningState.S2_PLAYING) return
+    val known = books[bookId.value]
+    val bookSpec = known?.let(::spec)
+      ?: BookSpec(id = bookId.value, title = "", chapters = emptyList())
     _state.value = ctx.copy(
       state = ListeningState.S2_PLAYING,
-      book = spec(book),
-      chapterIndex = index,
-      positionSec = (book.content.positionInChapter / 1_000).toInt(),
+      book = bookSpec,
+      chapterIndex = chapterIndex,
+      positionSec = positionSec,
     )
   }
+
+  /**
+   * 外部播放状态对齐（睡眠香到点、蓝牙、系统焦点）。
+   * 只改快照，绝不回敬指令 —— 外部已经按下暂停，我们再 playPause 一次就会把它重新开起来。
+   */
+  fun syncExternalPlayState(currentBookId: BookId?, isPlaying: Boolean) {
+    if (currentBookId == null) return
+
+    if (currentBookId != pageBookId) {
+      if (isPlaying) alignToPlayingBookId(currentBookId)
+      return
+    }
+
+    val ctx = _state.value
+    if (isPlaying && ctx.state != ListeningState.S2_PLAYING) {
+      _state.value = ctx.copy(
+        state = ListeningState.S2_PLAYING,
+        book = ctx.book ?: specOrPlaceholder(pageBookId),
+      )
+    } else if (!isPlaying && ctx.state == ListeningState.S2_PLAYING) {
+      _state.value = ctx.copy(state = ListeningState.S1_PAUSED)
+    }
+  }
+
+  private fun specOrPlaceholder(bookId: BookId): BookSpec =
+    books[bookId.value]?.let(::spec) ?: BookSpec(id = bookId.value, title = "", chapters = emptyList())
 
   private fun isPageBookPlaying(): Boolean = _state.value.book?.id == pageBookId.value
 

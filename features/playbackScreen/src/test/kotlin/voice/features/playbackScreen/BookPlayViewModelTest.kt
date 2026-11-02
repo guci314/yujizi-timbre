@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
@@ -301,14 +302,44 @@ class BookPlayViewModelTest {
     val pageBook = book(name = "Page")
     playStateManager.playState = PlayStateManager.PlayState.Playing
     currentBookStoreId.updateData { playingBook.id }
-    val viewModel = pageViewModel(pageBook, mockk(relaxed = true))
+    val player = mockk<PlayerController>(relaxed = true)
+    val viewModel = pageViewModel(pageBook, player)
 
     val states = backgroundScope.launchMolecule(RecompositionMode.Immediate) {
       viewModel.viewState()
     }
     // 播放器正诵读另一本书：这一页必须是「未在播」。旧实现在这里给的是 true。
-    val state = awaitViewState(states) { !it.playing }
-    assertEquals(expected = false, actual = state.playing)
+    assertEquals(expected = false, actual = awaitViewState(states) { !it.playing }.playing)
+    advanceUntilIdle()
+
+    // 即使查不到那本书（loadBook 返回 null），网格也必须停在它的 S2：
+    // 否则本页展卷会把正在诵读的书抢过来。
+    assertEquals(expected = playingBook.id, actual = currentBookStoreId.data.first())
+    verify(exactly = 0) { player.pauseIfCurrentBookDifferentFrom(any()) }
+    verify(exactly = 0) { player.play() }
+  }
+
+  @Test
+  fun externalPauseFlipsTheButtonWithoutFightingBack() = scope.runTest {
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Playing
+    currentBookStoreId.updateData { pageBook.id }
+    val player = mockk<PlayerController>(relaxed = true)
+    val viewModel = pageViewModel(pageBook, player)
+
+    val states = backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }
+    assertEquals(expected = true, actual = awaitViewState(states) { it.playing }.playing)
+
+    // 睡眠香到点 / 蓝牙断开：只改 playStateFlow，live 状态不一定会发射。
+    playStateManager.playState = PlayStateManager.PlayState.Paused
+
+    assertEquals(expected = false, actual = awaitViewState(states) { !it.playing }.playing)
+    advanceUntilIdle()
+    // 外部已经暂停，我们绝不能再回敬一次 playPause 把它开起来。
+    verify(exactly = 0) { player.playPause() }
+    verify(exactly = 0) { player.play() }
   }
 
   @Test
