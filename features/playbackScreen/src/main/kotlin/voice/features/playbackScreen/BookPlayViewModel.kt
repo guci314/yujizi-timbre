@@ -128,13 +128,19 @@ class BookPlayViewModel(
     val managerPlayState by remember {
       playStateManager.playStateFlow
     }.collectAsState()
+    val currentBookId by remember {
+      currentBookStoreId.data
+    }.collectAsState(initial = null)
 
     val book = if (livePlaybackState != null) {
       persistedBook.overlay(livePlaybackState)
     } else {
       persistedBook
     }
-    val isPlaying = livePlaybackState?.isPlaying ?: (managerPlayState == PlayStateManager.PlayState.Playing)
+    // 播放器正在诵读别的书时，这一页只是被翻看：不许显示「正在播放」。
+    val playingThisBook = currentBookId == bookId
+    val isPlaying = playingThisBook &&
+      (livePlaybackState?.isPlaying ?: (managerPlayState == PlayStateManager.PlayState.Playing))
 
     return bookPlayViewState(book = book, isPlaying = isPlaying)
   }
@@ -176,12 +182,18 @@ class BookPlayViewModel(
     val buffering by remember {
       playStateManager.bufferingFlow
     }.collectAsState()
+    val currentBookId by remember {
+      currentBookStoreId.data
+    }.collectAsState(initial = null)
 
-    val isPlaying = livePlaybackState?.isPlaying ?: (managerPlayState == PlayStateManager.PlayState.Playing)
+    // 播放器正在诵读别的书时，这一页只是被翻看：既不算在播，也不算在等音频。
+    val playingThisBook = currentBookId == bookId
+    val isPlaying = playingThisBook &&
+      (livePlaybackState?.isPlaying ?: (managerPlayState == PlayStateManager.PlayState.Playing))
     // the ring means "the player is waiting for audio": while this book is
     // being resolved, or while playback stalls on the stream. A pause is
     // neither, so it cannot light the ring up.
-    val loading = rememberWaitingForAudio(
+    val loading = playingThisBook && rememberWaitingForAudio(
       resolving = bookId.value in resolvingBooks,
       stalled = isPlaying && buffering,
     )
@@ -376,14 +388,20 @@ class BookPlayViewModel(
   fun playPause() {
     scope.launch {
       // 主动点播放才把「当前书」切到本页；只是翻看不算。
-      claimPlaybackForThisBook()
+      val switchingBooks = !isCurrentBook()
+      if (switchingBooks) {
+        // 旧书还占着播放器：先让它停下，再认领本页这本。
+        player.pauseIfCurrentBookDifferentFrom(bookId)
+        claimPlaybackForThisBook()
+      }
       if (playStateManager.playState != PlayStateManager.PlayState.Playing) {
         if (batteryOptimization.shouldRequest()) {
           viewEffects.tryEmit(BookPlayViewEffect.RequestIgnoreBatteryOptimization)
           batteryOptimization.onBatteryOptimizationsRequested()
         }
       }
-      player.playPause()
+      // 切书时必须明确开播；此时 playPause() 会读到旧书的 isPlaying=true 而误暂停。
+      if (switchingBooks) player.play() else player.playPause()
     }
   }
 
@@ -439,20 +457,24 @@ class BookPlayViewModel(
   fun onChapterClick(number: Int) {
     scope.launch {
       val book = currentBook() ?: return@launch
-      // 选章是一次主动点播：此时才允许把当前书切过来，并接着开讲。
-      val switchingBooks = anotherBookIsPlaying()
-      claimPlaybackForThisBook()
+      // 选章是一次主动点播：切书时先让旧书停下，再在本页这本上定位开讲。
+      val switchingBooks = !isCurrentBook()
+      if (switchingBooks) {
+        player.pauseIfCurrentBookDifferentFrom(bookId)
+        claimPlaybackForThisBook()
+      }
       var currentIndex = -1
       book.chapters.forEach { chapter ->
         chapter.chapterMarks.forEach { mark ->
           currentIndex++
           if (currentIndex == number - 1) {
-            if (switchingBooks) player.playPause()
             player.setPosition(
               book = book,
               chapterId = chapter.id,
               positionInChapterMs = mark.startMs,
             )
+            // 同样不能用 playPause()：旧书还在播时它会把它暂停掉。
+            if (switchingBooks) player.play()
             dialogState.value = null
             return@launch
           }
@@ -550,6 +572,8 @@ class BookPlayViewModel(
     val current = currentBookStoreId.data.first() ?: return false
     return current != bookId
   }
+
+  private suspend fun isCurrentBook(): Boolean = currentBookStoreId.data.first() == bookId
 
   /** 用户主动点播时才把「当前书」切到本页；翻看不算。 */
   private suspend fun claimPlaybackForThisBook() {

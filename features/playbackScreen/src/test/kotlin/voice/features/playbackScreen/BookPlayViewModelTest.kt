@@ -12,11 +12,13 @@ import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import voice.core.common.DispatcherProvider
 import voice.core.data.Book
@@ -43,6 +45,7 @@ import voice.features.sleepTimer.SleepTimerViewState
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -239,8 +242,9 @@ class BookPlayViewModelTest {
     viewModel.playPause()
     yield()
 
-    // 只有主动点播放才切书：播放器被要求开讲，当前书换成这一本。
-    verify(exactly = 1) { player.playPause() }
+    // 切书必须明确「开播」：此刻 playPause() 会读到旧书的 isPlaying=true 而误暂停。
+    verify(exactly = 1) { player.play() }
+    verify(exactly = 0) { player.playPause() }
     assertEquals(expected = pageBook.id, actual = currentBookStoreId.data.first())
   }
 
@@ -257,9 +261,56 @@ class BookPlayViewModelTest {
     viewModel.onChapterClick(number = 1)
     yield()
 
-    verify(exactly = 1) { player.playPause() }
+    verify(exactly = 1) { player.play() }
+    verify(exactly = 0) { player.playPause() }
     verify(exactly = 1) { player.setPosition(any(), any(), any()) }
     assertEquals(expected = pageBook.id, actual = currentBookStoreId.data.first())
+  }
+
+  @Test
+  fun playPauseOnTheCurrentBookStillToggles() = scope.runTest {
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Playing
+    currentBookStoreId.updateData { pageBook.id }
+    val player = mockk<PlayerController>(relaxed = true)
+    val viewModel = pageViewModel(pageBook, player)
+    yield()
+
+    viewModel.playPause()
+    yield()
+
+    // 本来就是这一本：正常切换，不该强制重新开播。
+    verify(exactly = 1) { player.playPause() }
+    verify(exactly = 0) { player.play() }
+  }
+
+  @Test
+  fun browsingAnotherBookShowsItAsNotPlaying() = scope.runTest {
+    val playingBook = book(name = "Playing")
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Playing
+    currentBookStoreId.updateData { playingBook.id }
+    val viewModel = pageViewModel(pageBook, mockk(relaxed = true))
+
+    val states = backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }
+    // 播放器正诵读另一本书：这一页必须是「未在播」。旧实现在这里给的是 true。
+    val state = awaitViewState(states) { !it.playing }
+    assertEquals(expected = false, actual = state.playing)
+  }
+
+  @Test
+  fun thePlayingBookStillShowsAsPlaying() = scope.runTest {
+    val pageBook = book(name = "Page")
+    playStateManager.playState = PlayStateManager.PlayState.Playing
+    currentBookStoreId.updateData { pageBook.id }
+    val viewModel = pageViewModel(pageBook, mockk(relaxed = true))
+
+    val states = backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+      viewModel.viewState()
+    }
+    assertEquals(expected = true, actual = awaitViewState(states) { it.playing }.playing)
   }
 
   @Test
@@ -475,16 +526,15 @@ class BookPlayViewModelTest {
       experimentalPlaybackPersistence = true,
       livePlaybackFlow = MutableStateFlow(null),
       playStateFlow = MutableStateFlow(PlayStateManager.PlayState.Playing),
+      currentBookId = book.id,
     )
 
-    backgroundScope.launchMolecule(RecompositionMode.Immediate) {
+    val states = backgroundScope.launchMolecule(RecompositionMode.Immediate) {
       viewModel.viewState()
-    }.test {
-      assertEquals(expected = null, actual = awaitItem())
-      val state = awaitItem()!!
-      assertEquals(expected = true, actual = state.playing)
-      assertEquals(expected = 30.seconds, actual = state.playedTime)
     }
+    val state = awaitViewState(states) { it.playedTime == 30.seconds && it.playing }
+    assertEquals(expected = true, actual = state.playing)
+    assertEquals(expected = 30.seconds, actual = state.playedTime)
   }
 
   @Test
@@ -605,12 +655,21 @@ class BookPlayViewModelTest {
     )
   }
 
+  /** 等到快照满足条件（书架与「当前书」两路数据各自到达后才可能稳定）。 */
+  private suspend fun awaitViewState(
+    states: StateFlow<BookPlayViewState?>,
+    predicate: (BookPlayViewState) -> Boolean,
+  ): BookPlayViewState = assertNotNull(
+    withTimeoutOrNull(2.seconds) { states.first { it != null && predicate(it) } },
+  )
+
   private fun viewModel(
     book: Book = this.book,
     experimentalPlaybackPersistence: Boolean = false,
     kioskMode: Boolean = false,
     livePlaybackFlow: MutableStateFlow<LivePlaybackState?> = MutableStateFlow(null),
     playStateFlow: MutableStateFlow<PlayStateManager.PlayState> = MutableStateFlow(PlayStateManager.PlayState.Paused),
+    currentBookId: BookId? = null,
   ): BookPlayViewModel {
     return BookPlayViewModel(
       bookRepository = mockk {
@@ -631,7 +690,7 @@ class BookPlayViewModelTest {
         every { isOnlineBookId(any()) } returns false
         every { playbackErrors } returns MutableSharedFlow()
       },
-      currentBookStoreId = MemoryDataStore(null),
+      currentBookStoreId = MemoryDataStore(currentBookId),
       navigator = mockk(),
       bookmarkRepository = mockk(),
       volumeGainFormatter = mockk(),
