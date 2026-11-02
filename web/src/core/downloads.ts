@@ -92,7 +92,7 @@ function concatChunks(chunks: Uint8Array[]): Uint8Array {
 export async function fetchTrackBytes(
   track: Track,
   options: DownloadOptions = {},
-): Promise<{ body: Blob; sizeBytes: number; headers: Headers }> {
+): Promise<{ body: Blob; sizeBytes: number; headers: Headers; sha256: string }> {
   const response = await fetch(track.url, { signal: options.signal })
   if (!response.ok) {
     throw new Error(`下载失败（${response.status}）：${track.name}`)
@@ -101,8 +101,8 @@ export async function fetchTrackBytes(
   // Verify before anything reaches Cache Storage: a truncated episode must never
   // be stored, or it will look downloaded and fail to play months later.
   const bytes = concatChunks(chunks)
-  await assertPayloadIntact(track.url, bytes, declaredLength)
-  return { body: new Blob([bytes]), sizeBytes: received, headers: response.headers }
+  const { sha256 } = await assertPayloadIntact(track.url, bytes, declaredLength)
+  return { body: new Blob([bytes]), sizeBytes: received, headers: response.headers, sha256 }
 }
 
 /**
@@ -124,7 +124,7 @@ export async function downloadTrack(
   }
   const { chunks, received, declaredLength } = await collectBody(response, options.onProgress, track.url)
   const bytes = concatChunks(chunks)
-  await assertPayloadIntact(track.url, bytes, declaredLength)
+  const { sha256 } = await assertPayloadIntact(track.url, bytes, declaredLength)
 
   const record: DownloadedTrack = {
     url: track.url,
@@ -134,6 +134,7 @@ export async function downloadTrack(
     trackName: track.name,
     sizeBytes: received,
     downloadedAt: Date.now(),
+    sha256,
   }
 
   let cache: Cache

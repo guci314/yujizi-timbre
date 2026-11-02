@@ -38,8 +38,9 @@ describe('integrity manifest', () => {
 describe('verifyBytes', () => {
   const payload = new TextEncoder().encode('玉机子')
 
-  it('accepts an empty manifest expectation when the length matches', async () => {
-    await expect(verifyBytes({ bytes: payload, declaredLength: payload.length })).resolves.toBeUndefined()
+  it('accepts an unlisted track and still reports its digest', async () => {
+    const result = await verifyBytes({ bytes: payload, declaredLength: payload.length })
+    expect(result.sha256).toBe(await sha256Hex(payload))
   })
 
   it('rejects an empty body', async () => {
@@ -86,6 +87,6 @@ describe('verifyBytes', () => {
         declaredLength: payload.length,
         expected: { size: payload.length, sha256: digest },
       }),
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ sha256: digest })
   })
 })

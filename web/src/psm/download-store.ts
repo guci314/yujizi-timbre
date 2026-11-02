@@ -24,7 +24,7 @@ import {
   type DownloadEvent,
 } from '../pim/offline-grid'
 import { step } from '../pim/kernel'
-import { auditDownloads, repairDownloadDrift, storeTrack } from './storage-driver'
+import { auditStoredTracks, storeTrack, type StoredAuditResult } from './storage-driver'
 import { formatBytes } from '../core/format'
 
 /** Tracks fetched at once while downloading a whole book. */
@@ -36,7 +36,10 @@ const usage = ref<StorageUsage>()
 const error = ref<string>()
 const bookBusy = ref(false)
 const persisted = ref<boolean>()
+const auditing = ref(false)
+const auditNote = ref<string>()
 let loaded = false
+let auditRun: Promise<StoredAuditResult> | undefined
 
 function recordContexts(entries: DownloadedTrack[]): Map<string, DownloadContext> {
   return new Map(
@@ -199,14 +202,33 @@ export function useDownloads() {
     usage.value = await storageUsage()
   }
 
-  /** Compare the index with the cached bytes and repair any drift (I6). */
-  async function audit(): Promise<{ danglingRecords: number; orphanBytes: number }> {
-    const plan = await auditDownloads()
-    if (plan.danglingRecords.length > 0 || plan.orphanBytes.length > 0) {
-      await repairDownloadDrift()
-      await refresh()
-    }
-    return { danglingRecords: plan.danglingRecords.length, orphanBytes: plan.orphanBytes.length }
+  /**
+   * Reconcile the index with the cache, then lazily verify legacy tracks.
+   *
+   * Safe to call on every visit: records already carrying a sha256 are skipped
+   * without touching their bytes, so only old downloads pay the hashing cost,
+   * and only once.
+   */
+  async function audit(): Promise<StoredAuditResult> {
+    auditRun ??= (async () => {
+      auditing.value = true
+      auditNote.value = '正在核对本机音频…'
+      try {
+        const result = await auditStoredTracks({
+          onProgress: (done, total) => {
+            if (done < total) auditNote.value = `正在校验第 ${done + 1}/${total} 首旧音频…`
+          },
+        })
+        auditNote.value = describeAudit(result)
+        await refresh()
+        return result
+      } finally {
+        auditing.value = false
+      }
+    })().finally(() => {
+      auditRun = undefined
+    })
+    return auditRun
   }
 
   return {
@@ -232,8 +254,25 @@ export function useDownloads() {
     dropAll,
     persist,
     audit,
+    auditing,
+    auditNote,
     refresh,
   }
+}
+
+function describeAudit(result: StoredAuditResult): string {
+  // Dangling records and orphan bytes are removed by the reconciliation step;
+  // they are just as much "a broken leftover" to the listener.
+  const removed = result.cleaned + result.danglingRecords + result.orphanBytes
+  if (removed > 0) {
+    return `已自动清理 ${removed} 个损坏或未下完的旧音频，请重新下载`
+  }
+  if (result.checked === 0) {
+    return result.alreadyVerified > 0
+      ? `本机 ${result.alreadyVerified} 首音频均已校验，无需重算`
+      : '还没有下载内容'
+  }
+  return `已校验 ${result.checked} 首旧音频，全部完好`
 }
 
 /** Test seam. */
@@ -244,5 +283,8 @@ export function resetDownloads(): void {
   error.value = undefined
   bookBusy.value = false
   persisted.value = undefined
+  auditing.value = false
+  auditNote.value = undefined
   loaded = false
+  auditRun = undefined
 }

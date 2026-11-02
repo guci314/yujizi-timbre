@@ -76,6 +76,14 @@ export interface DownloadedTrack {
   /** Bytes stored, or 0 when the server sent no length. */
   sizeBytes: number
   downloadedAt: number
+  /**
+   * SHA-256 of the stored bytes, when it has been checked at least once.
+   *
+   * Downloads write it immediately after verification, so re-entering the
+   * offline page never re-hashes an 88 MB episode. Records written by older
+   * versions have no value here and are checked lazily, one at a time.
+   */
+  sha256?: string
 }
 
 /** Raised when the device has no room left for a download. */

@@ -21,6 +21,11 @@ import {
 } from '../core/storage/db'
 import { classifyDownloadFailure } from '../core/downloads'
 import {
+  expectedIntegrityFor,
+  verifyBytes,
+  type AudioIntegrity,
+} from '../core/integrity'
+import {
   isConsistent,
   reconcile,
   repairDownloads,
@@ -145,7 +150,7 @@ export async function storeTrack(
   try {
     // `fetchTrackBytes` verifies length and SHA-256 before returning, so nothing
     // below this line can ever see a truncated or tampered body.
-    const { body, sizeBytes, headers } = await fetchTrackBytes(track, {
+    const { body, sizeBytes, headers, sha256 } = await fetchTrackBytes(track, {
       onProgress: (progress) => onProgress?.(progress.received, progress.total),
     })
 
@@ -157,6 +162,7 @@ export async function storeTrack(
         trackIndex,
         trackName: track.name,
         downloadedAt: Date.now(),
+        sha256,
       },
       body,
       headers,
@@ -177,6 +183,7 @@ export async function storeTrack(
       trackName: track.name,
       sizeBytes,
       downloadedAt: Date.now(),
+      sha256,
     }
   } catch (cause) {
     const reason = classifyDownloadFailure(cause)
@@ -198,3 +205,127 @@ async function deleteAudioBytes(url: string): Promise<void> {
 }
 
 /* Re-exported so callers do not have to know which module owns the model. */
+
+export interface StoredAuditResult {
+  /** Records with no bytes behind them, before repair. */
+  readonly danglingRecords: number
+  /** Cached bytes with no record in front of them, before repair. */
+  readonly orphanBytes: number
+  /** Records already carrying a trustworthy marker; nothing was read. */
+  readonly alreadyVerified: number
+  /** Legacy records actually read and hashed this run. */
+  readonly checked: number
+  /** Records deleted because their bytes were missing, truncated or tampered. */
+  readonly cleaned: number
+}
+
+export interface StoredAuditOptions {
+  /** Injectable for tests; production uses the shipped manifest. */
+  resolveExpected?: (url: string) => Promise<AudioIntegrity | undefined>
+  /** Fires before each legacy track so the page can show "3/12". */
+  onProgress?: (done: number, total: number) => void
+}
+
+/**
+ * Lazy verification of tracks downloaded by older versions.
+ *
+ * Downloads now stamp `sha256` on the record, so the common path reads nothing.
+ * Records without a trustworthy marker (written before that stamp existed, or
+ * against an older manifest) are checked once, **strictly one at a time**: a
+ * listener may have ten 80 MB episodes, and hashing them concurrently would
+ * exhaust an iPad's memory long before it finished.
+ */
+export async function auditStoredTracks(options: StoredAuditOptions = {}): Promise<StoredAuditResult> {
+  const resolveExpected = options.resolveExpected ?? ((url: string) => expectedIntegrityFor(url))
+
+  let records = await loadDownloads()
+  const cacheKeys = await listAudioCacheKeys()
+  const plan = reconcile(
+    records.map((record) => record.url),
+    cacheKeys,
+  )
+  if (!isConsistent(plan)) {
+    await repairDownloadDrift()
+    records = await loadDownloads()
+  }
+
+  const targets: Array<{ record: DownloadedTrack; expected: AudioIntegrity | undefined }> = []
+  let alreadyVerified = 0
+  for (const record of records) {
+    const expected = await resolveExpected(record.url)
+    // A stamp is trustworthy while it matches the manifest; a missing or stale
+    // stamp (the manifest may have been regenerated) means "check this one".
+    if (record.sha256 !== undefined && (expected === undefined || record.sha256 === expected.sha256)) {
+      alreadyVerified += 1
+      continue
+    }
+    targets.push({ record, expected })
+  }
+
+  let checked = 0
+  let cleaned = 0
+  const cache = await caches.open(AUDIO_CACHE)
+
+  const drop = async (url: string): Promise<void> => {
+    await cache.delete(url).catch(() => undefined)
+    await deleteDownloadRecord(url).catch(() => undefined)
+  }
+
+  for (let index = 0; index < targets.length; index += 1) {
+    options.onProgress?.(index, targets.length)
+    const { record, expected } = targets[index]
+    checked += 1
+
+    // Fast screen: the recorded size already contradicts the manifest, so the
+    // bytes need not even be read.
+    if (expected !== undefined && record.sizeBytes > 0 && record.sizeBytes !== expected.size) {
+      await drop(record.url)
+      cleaned += 1
+      continue
+    }
+
+    const response = await cache.match(record.url).catch(() => undefined)
+    if (response === undefined) {
+      // Bytes vanished (Safari evicted them): the record is a lie, drop it.
+      await drop(record.url)
+      cleaned += 1
+      continue
+    }
+
+    let bytes: Uint8Array
+    try {
+      bytes = new Uint8Array(await response.arrayBuffer())
+    } catch {
+      await drop(record.url)
+      cleaned += 1
+      continue
+    }
+
+    let verified: { sha256: string }
+    try {
+      verified = await verifyBytes({ bytes, declaredLength: 0, expected })
+    } catch {
+      await drop(record.url)
+      cleaned += 1
+      continue
+    }
+
+    // Stamp the record so the next visit skips it. A failed write is not fatal:
+    // the bytes are good, and the next audit will simply check this one again.
+    await saveDownload({
+      ...record,
+      sizeBytes: bytes.length,
+      sha256: verified.sha256,
+    }).catch(() => undefined)
+  }
+
+  options.onProgress?.(targets.length, targets.length)
+
+  return {
+    danglingRecords: plan.danglingRecords.length,
+    orphanBytes: plan.orphanBytes.length,
+    alreadyVerified,
+    checked,
+    cleaned,
+  }
+}

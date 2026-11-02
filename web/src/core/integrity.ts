@@ -100,7 +100,7 @@ export async function verifyBytes(input: {
   bytes: Uint8Array
   declaredLength: number
   expected?: AudioIntegrity
-}): Promise<void> {
+}): Promise<{ sha256: string }> {
   const { bytes, declaredLength, expected } = input
 
   if (bytes.length === 0) throw new AudioIntegrityError()
@@ -109,12 +109,11 @@ export async function verifyBytes(input: {
     throw new AudioIntegrityError()
   }
 
-  if (expected === undefined) return
-
-  if (bytes.length !== expected.size) throw new AudioIntegrityError()
+  if (expected !== undefined && bytes.length !== expected.size) throw new AudioIntegrityError()
 
   const digest = await sha256Hex(bytes)
-  if (digest !== expected.sha256.toLowerCase()) throw new AudioIntegrityError()
+  if (expected !== undefined && digest !== expected.sha256.toLowerCase()) throw new AudioIntegrityError()
+  return { sha256: digest }
 }
 
 /** Look the url up in the shipped manifest, then verify the body. */
@@ -122,6 +121,6 @@ export async function assertPayloadIntact(
   url: string,
   bytes: Uint8Array,
   declaredLength: number,
-): Promise<void> {
-  await verifyBytes({ bytes, declaredLength, expected: await expectedIntegrityFor(url) })
+): Promise<{ sha256: string }> {
+  return verifyBytes({ bytes, declaredLength, expected: await expectedIntegrityFor(url) })
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatBytes, ratio } from '../core/format'
 import { ensureDownloadsLoaded, useDownloads } from '../psm/download-store'
@@ -8,8 +8,6 @@ import { useLibrary } from '../psm/library-store'
 const router = useRouter()
 const downloads = useDownloads()
 const { books, loadBooks } = useLibrary()
-
-const auditNote = ref<string>()
 
 /** Downloads grouped by book, largest first. */
 const groups = computed(() => {
@@ -33,18 +31,12 @@ const usedRatio = computed(() =>
 )
 const usedPercent = computed(() => Math.round(usedRatio.value * 100))
 
-async function runAudit(): Promise<void> {
-  auditNote.value = '正在核对…'
-  const result = await downloads.audit()
-  auditNote.value =
-    result.danglingRecords === 0 && result.orphanBytes === 0
-      ? '账实一致，无需修复。'
-      : `已修复：清除 ${result.danglingRecords} 条无字节记录、${result.orphanBytes} 份无记录字节。`
-}
-
 onMounted(async () => {
   await Promise.all([ensureDownloadsLoaded(), loadBooks()])
   await downloads.refresh()
+  // First visit after an upgrade pays for hashing the legacy tracks; later
+  // visits skip every record that already carries its sha256 stamp.
+  await downloads.audit()
 })
 </script>
 
@@ -80,8 +72,10 @@ onMounted(async () => {
       </div>
 
       <div class="storage-card__actions">
-        <button class="link-button" @click="runAudit">核对账实</button>
-        <span v-if="auditNote" class="muted">{{ auditNote }}</span>
+        <button class="link-button" :disabled="downloads.auditing.value" @click="downloads.audit()">
+          {{ downloads.auditing.value ? '核对中…' : '核对账实' }}
+        </button>
+        <span v-if="downloads.auditNote.value" class="muted">{{ downloads.auditNote.value }}</span>
       </div>
     </div>
 
